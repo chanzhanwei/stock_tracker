@@ -848,11 +848,21 @@
       script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js";
       script.async = true;
       script.crossOrigin = "anonymous";
+      script.setAttribute("data-clerk-publishable-key", publishableKey);
       script.onload = function () {
         try {
-          var Ctor = window.Clerk;
-          state.clerk = new Ctor(publishableKey);
-          state.clerk.load().then(resolve).catch(reject);
+          var clerk = window.Clerk;
+          if (typeof clerk === "function") {
+            clerk = new clerk(publishableKey);
+          } else if (clerk && typeof clerk.Clerk === "function") {
+            clerk = new clerk.Clerk(publishableKey);
+          }
+          if (!clerk || typeof clerk.load !== "function") {
+            reject(new Error("Clerk failed to load."));
+            return;
+          }
+          state.clerk = clerk;
+          clerk.load().then(resolve).catch(reject);
         } catch (err) {
           reject(err);
         }
