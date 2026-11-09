@@ -1,0 +1,16 @@
+{
+  "name": "stock_tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-ticker technical dashboard. Not financial advice.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node scripts/self-check.js",
+    "start": "node scripts/local-server.js"
+  },
+  "dependencies": {
+    "@clerk/backend": "3.27.0"
+  }
+}
