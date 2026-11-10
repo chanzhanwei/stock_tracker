@@ -19,13 +19,14 @@ module.exports = withErrors(async function events(req, res) {
     send(res, 400, { error: parsed.error });
     return;
   }
-  const key = "events:" + parsed.exchange + ":" + parsed.symbol;
+  const allowMock = String(query.mock) === "1";
+  const key = "events:" + parsed.exchange + ":" + parsed.symbol + ":mock" + (allowMock ? "1" : "0");
   const cached = get(key);
   if (cached) {
     send(res, 200, cached);
     return;
   }
-  const mocks = mockEvents(parsed.exchange, parsed.symbol);
+  const mocks = allowMock ? mockEvents(parsed.exchange, parsed.symbol) : [];
   let earnings = null;
   let dividend = null;
   try {
@@ -36,12 +37,18 @@ module.exports = withErrors(async function events(req, res) {
     earnings = null;
     dividend = null;
   }
-  const filled = [
-    earnings || mocks.find((row) => row.type === "earnings"),
-    dividend || mocks.find((row) => row.type === "dividend"),
-    mocks.find((row) => row.type === "agm"),
-  ];
-  const source = filled.some((row) => row && row.source === "yahoo") ? "yahoo" : "mock";
+  const filled = [];
+  const earningsRow = earnings || mocks.find((row) => row.type === "earnings");
+  const dividendRow = dividend || mocks.find((row) => row.type === "dividend");
+  if (earningsRow) filled.push(earningsRow);
+  if (dividendRow) filled.push(dividendRow);
+  if (allowMock) {
+    const agm = mocks.find((row) => row.type === "agm");
+    if (agm) filled.push(agm);
+  }
+  let source = "none";
+  if (filled.some((row) => row.source === "yahoo")) source = "yahoo";
+  else if (filled.length) source = "mock";
   const payload = { source, events: filled };
   set(key, payload, TTL.events);
   send(res, 200, payload);

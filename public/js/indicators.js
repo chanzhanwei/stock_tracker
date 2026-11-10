@@ -358,7 +358,7 @@
       id: "institutional",
       label: "Institutional buy/sell",
       group: "levels",
-      vote: instOn ? voteInstitutional(Number(inst.buyPct), Number(inst.sellPct)) : "off",
+      vote: !instOn ? "off" : (inst.buyPct == null || inst.sellPct == null) ? "na" : voteInstitutional(Number(inst.buyPct), Number(inst.sellPct)),
       implemented: true,
       active: instOn,
     });

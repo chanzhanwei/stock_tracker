@@ -1,6 +1,6 @@
 # stock_tracker
 
-Single-ticker technical dashboard for ASX, NASDAQ, NYSE, SP500, and HKEX. It loads daily prices, key events, and a mock institutional split, then turns the indicators you switch on into a Buy, Hold, or Sell verdict.
+Single-ticker technical dashboard for ASX, NASDAQ, NYSE, SP500, and HKEX. It loads daily prices and key events when you ask for a ticker, then turns the indicators you switch on into a Buy, Hold, or Sell verdict. Mock prices and the mock institutional split stay off until the Mock data switch is on. Ledger is a second screen of illustrative ownership signals.
 
 **Not financial advice.** Nothing in this app is a recommendation to buy or sell a security.
 
@@ -45,7 +45,7 @@ If both Clerk keys are absent **and** the request host is `localhost` or `127.0.
 
 ## Data
 
-`GET /api/ohlcv` tries Yahoo's public daily chart API, then a deterministic mock random walk seeded by `exchange:symbol`. The response `source` is `yahoo` or `mock`. Events use Yahoo calendar and dividend fields when they are present and mock-fill anything missing, including AGM. Institutional buy/sell is always mock and is labeled as mock in the UI.
+`GET /api/ohlcv` tries Yahoo's public daily chart API. Pass `mock=1` to fill a gap with a deterministic mock random walk seeded by `exchange:symbol`. With `mock=0` or the flag omitted, a miss returns `{ source: "none", bars: [] }`. The response `source` is `yahoo`, `mock`, or `none`. Events use Yahoo calendar and dividend fields when they are present. Mock fills, including AGM, are added only when `mock=1`. Institutional buy/sell is mock data only when `mock=1`; otherwise the payload is `{ source: "none", buyPct: null, sellPct: null }`. The desk sends the flag from the Mock data switch, which starts off, and the flag is part of the cache key.
 
 Each load asks for the visible trading days plus 40 warmup days, converted with `ceil(n * 1.6) + 10` calendar days. The API clamps `days` to 1–3650 and defaults to 120.
 

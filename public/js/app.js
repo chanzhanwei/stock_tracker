@@ -10,7 +10,10 @@
     pendingEmail: "",
     authMode: "email",
     exchange: STConfig.defaultExchange,
-    symbol: STConfig.defaultSymbol,
+    symbol: "",
+    allowMock: false,
+    loaded: false,
+    ledgerOpen: false,
     timeframe: STConfig.defaultTimeframe,
     toggles: {},
     customPeriod: 30,
@@ -119,59 +122,68 @@
         Array.prototype.forEach.call(frames.querySelectorAll("button"), function (el) {
           el.setAttribute("aria-pressed", el === button ? "true" : "false");
         });
+        if (!state.loaded) return;
         if (state.bars.length) paint();
         else loadTicker();
       });
       frames.appendChild(button);
     });
+    function indicatorControl(item) {
+      var label = document.createElement("label");
+      label.className = "ind" + (item.implemented ? "" : " na");
+      var input = document.createElement("input");
+      input.type = "checkbox";
+      input.disabled = !item.implemented;
+      input.checked = !!state.toggles[item.id];
+      input.dataset.id = item.id;
+      var name = document.createElement("span");
+      name.textContent = item.label;
+      label.appendChild(input);
+      label.appendChild(name);
+      if (!item.implemented) {
+        var na = document.createElement("em");
+        na.textContent = "N/A";
+        label.appendChild(na);
+      }
+      if (item.period) {
+        var period = document.createElement("input");
+        period.className = "period";
+        period.type = "number";
+        period.min = "2";
+        period.max = "400";
+        period.value = String(state.customPeriod);
+        period.setAttribute("aria-label", "Custom SMA period");
+        period.addEventListener("mousedown", function (event) { event.stopPropagation(); });
+        period.addEventListener("click", function (event) { event.stopPropagation(); });
+        period.addEventListener("change", function () {
+          state.customPeriod = STIndicators.clampPeriod(period.value);
+          period.value = String(state.customPeriod);
+          if (state.loaded) paint();
+        });
+        label.appendChild(period);
+      }
+      if (item.implemented) {
+        input.addEventListener("change", function () {
+          state.toggles[item.id] = input.checked;
+          if (state.loaded) paint();
+        });
+      }
+      return label;
+    }
+    var pin = $("volume-pin");
+    pin.textContent = "";
+    pin.appendChild(indicatorControl({ id: "volume", label: "Volume bars", implemented: true }));
     var host = $("indicator-groups");
+    host.textContent = "";
     STConfig.groups.forEach(function (group) {
-      var section = document.createElement("section");
+      var section = document.createElement("details");
       section.className = "group";
-      var title = document.createElement("h2");
+      var title = document.createElement("summary");
       title.textContent = group.label;
       section.appendChild(title);
       group.items.forEach(function (item) {
-        var label = document.createElement("label");
-        label.className = "ind" + (item.implemented ? "" : " na");
-        var input = document.createElement("input");
-        input.type = "checkbox";
-        input.disabled = !item.implemented;
-        input.checked = !!state.toggles[item.id];
-        input.dataset.id = item.id;
-        var name = document.createElement("span");
-        name.textContent = item.label;
-        label.appendChild(input);
-        label.appendChild(name);
-        if (!item.implemented) {
-          var na = document.createElement("em");
-          na.textContent = "N/A";
-          label.appendChild(na);
-        }
-        if (item.period) {
-          var period = document.createElement("input");
-          period.className = "period";
-          period.type = "number";
-          period.min = "2";
-          period.max = "400";
-          period.value = String(state.customPeriod);
-          period.setAttribute("aria-label", "Custom SMA period");
-          period.addEventListener("mousedown", function (event) { event.stopPropagation(); });
-          period.addEventListener("click", function (event) { event.stopPropagation(); });
-          period.addEventListener("change", function () {
-            state.customPeriod = STIndicators.clampPeriod(period.value);
-            period.value = String(state.customPeriod);
-            if (state.bars.length) paint();
-          });
-          label.appendChild(period);
-        }
-        if (item.implemented) {
-          input.addEventListener("change", function () {
-            state.toggles[item.id] = input.checked;
-            if (state.bars.length) paint();
-          });
-        }
-        section.appendChild(label);
+        if (item.id === "volume") return;
+        section.appendChild(indicatorControl(item));
       });
       host.appendChild(section);
     });
@@ -279,7 +291,6 @@
       requestAnimationFrame(syncChartSizes);
     });
     renderFavorites();
-    loadTicker();
   }
 
   function showDenied(email) {
@@ -322,6 +333,13 @@
     state.email = "";
     state.admin = false;
     state.authMode = "email";
+    state.ledgerOpen = false;
+    if ($("ledger")) $("ledger").hidden = true;
+    if ($("desk")) $("desk").hidden = false;
+    if ($("ledger-button")) {
+      $("ledger-button").textContent = "Ledger";
+      $("ledger-button").setAttribute("aria-pressed", "false");
+    }
     $("auth-code").value = "";
     setAuthStep("email");
     showAuthError("");
@@ -579,8 +597,9 @@
     });
     var votes = $("vote-list");
     votes.textContent = "";
-    result.votes.forEach(function (vote) {
-      var item = document.createElement("li");
+    function voteRow(vote) {
+      var item = document.createElement("div");
+      item.className = "vote-row";
       var name = document.createElement("span");
       name.textContent = vote.label;
       var value = document.createElement("span");
@@ -594,7 +613,29 @@
       value.className = cls;
       item.appendChild(name);
       item.appendChild(value);
-      votes.appendChild(item);
+      return item;
+    }
+    result.votes.filter(function (vote) { return vote.id === "volume"; }).forEach(function (vote) {
+      votes.appendChild(voteRow(vote));
+    });
+    [
+      ["trend", "Trend"],
+      ["momentum", "Momentum"],
+      ["volatility", "Volatility"],
+      ["volume", "Volume"],
+      ["levels", "Flow and levels"],
+    ].forEach(function (pair) {
+      var details = document.createElement("details");
+      details.className = "vote-group";
+      var summary = document.createElement("summary");
+      summary.textContent = pair[1];
+      details.appendChild(summary);
+      result.votes.filter(function (vote) {
+        return vote.group === pair[0] && vote.id !== "volume";
+      }).forEach(function (vote) {
+        details.appendChild(voteRow(vote));
+      });
+      votes.appendChild(details);
     });
   }
 
@@ -627,13 +668,23 @@
   }
 
   function paintInstitutional() {
-    var inst = state.institutional || { buyPct: 0, sellPct: 0, source: "mock" };
+    var inst = state.institutional || { buyPct: null, sellPct: null, source: "none" };
+    var badge = $("inst-source");
+    if (inst.source === "none" || inst.buyPct == null || inst.sellPct == null) {
+      $("inst-buy").style.width = "0%";
+      $("inst-sell").style.width = "0%";
+      badge.textContent = "off";
+      badge.className = "badge";
+      $("inst-caption").textContent = "Institutional data is off.";
+      return;
+    }
     var buy = Math.max(0, Number(inst.buyPct) || 0);
     var sell = Math.max(0, Number(inst.sellPct) || 0);
     var scale = buy + sell > 100 ? 100 / (buy + sell) : 1;
     $("inst-buy").style.width = (buy * scale) + "%";
     $("inst-sell").style.width = (sell * scale) + "%";
-    $("inst-source").textContent = inst.source || "mock";
+    badge.textContent = inst.source || "mock";
+    badge.className = "badge" + (inst.source === "mock" ? " mock" : "");
     $("inst-caption").textContent = "Buy " + buy + "% · Sell " + sell + "% · mock data, not a live holdings feed.";
   }
 
@@ -663,6 +714,23 @@
       institutional: state.institutional,
     });
     state.result = result;
+    if (!state.bars.length) {
+      Object.keys(state.series).forEach(function (key) {
+        if (state.series[key] && state.series[key].setData) state.series[key].setData([]);
+      });
+      if (state.series.candle && state.series.candle.setMarkers) state.series.candle.setMarkers([]);
+      state.candleTimes = [];
+      state.viewBars = [];
+      $("symbol-name").textContent = state.symbol || "—";
+      $("symbol-meta").textContent = state.symbol ? state.exchange : "";
+      var emptyBadge = $("source-badge");
+      emptyBadge.textContent = state.source || "";
+      emptyBadge.className = "badge" + (state.source === "mock" ? " mock" : "");
+      paintQuote(null);
+      paintVerdict(result);
+      renderFavorites();
+      return;
+    }
     var start = Math.max(0, state.bars.length - visible);
     var view = state.bars.slice(start);
     state.viewBars = view;
@@ -741,12 +809,13 @@
       return;
     }
     state.symbol = symbol;
+    state.loaded = true;
     state.exchange = $("exchange").value;
     $("ticker").value = symbol;
     var seq = ++state.loadSeq;
     $("status").textContent = "Loading " + state.exchange + ":" + symbol + "…";
     var days = STConfig.calendarDays(STConfig.visibleDays(state.timeframe));
-    var query = "exchange=" + encodeURIComponent(state.exchange) + "&symbol=" + encodeURIComponent(symbol);
+    var query = "exchange=" + encodeURIComponent(state.exchange) + "&symbol=" + encodeURIComponent(symbol) + "&mock=" + (state.allowMock ? "1" : "0");
     try {
       var responses = await Promise.all([
         api("/api/ohlcv?" + query + "&days=" + days),
@@ -773,8 +842,8 @@
       state.source = bodies[0].source || "";
       state.events = (bodies[1] && bodies[1].events) || [];
       state.eventsSource = (bodies[1] && bodies[1].source) || "";
-      state.institutional = bodies[2] && bodies[2].buyPct != null ? bodies[2] : { source: "mock", buyPct: 0, sellPct: 0 };
-      $("status").textContent = "";
+      state.institutional = bodies[2] || { source: "none", buyPct: null, sellPct: null };
+      $("status").textContent = state.bars.length ? "" : (state.allowMock ? "No prices." : "No live prices. Mock data is off.");
       paintEvents();
       paintInstitutional();
       paint();
@@ -875,6 +944,23 @@
     });
     $("signout").addEventListener("click", signOut);
     $("denied-signout").addEventListener("click", signOut);
+    $("mock-toggle").addEventListener("change", function () {
+      state.allowMock = $("mock-toggle").checked;
+      if (state.loaded) loadTicker();
+    });
+    $("ledger-button").addEventListener("click", function () {
+      setLedger(!state.ledgerOpen);
+    });
+  }
+
+  function setLedger(open) {
+    state.ledgerOpen = open;
+    $("desk").hidden = open;
+    $("ledger").hidden = !open;
+    $("ledger-button").textContent = open ? "Desk" : "Ledger";
+    $("ledger-button").setAttribute("aria-pressed", open ? "true" : "false");
+    if (open) STLedger.open($("ledger"), function () { setLedger(false); });
+    else syncChartSizes();
   }
 
   function loadClerk(publishableKey) {

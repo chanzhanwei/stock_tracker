@@ -20,7 +20,8 @@ module.exports = withErrors(async function ohlcv(req, res) {
     return;
   }
   const days = clampDays(query.days);
-  const key = "ohlcv:" + parsed.exchange + ":" + parsed.symbol + ":" + days;
+  const allowMock = String(query.mock) === "1";
+  const key = "ohlcv:" + parsed.exchange + ":" + parsed.symbol + ":" + days + ":mock" + (allowMock ? "1" : "0");
   const cached = get(key);
   if (cached) {
     send(res, 200, cached);
@@ -33,7 +34,8 @@ module.exports = withErrors(async function ohlcv(req, res) {
   } catch (err) {
     payload = null;
   }
-  if (!payload) payload = { source: "mock", bars: mockBars(parsed.exchange, parsed.symbol, days) };
+  if (!payload && allowMock) payload = { source: "mock", bars: mockBars(parsed.exchange, parsed.symbol, days) };
+  if (!payload) payload = { source: "none", bars: [] };
   set(key, payload, TTL.ohlcv);
   send(res, 200, payload);
 });

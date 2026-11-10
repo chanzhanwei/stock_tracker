@@ -96,15 +96,21 @@
         <button type="submit">Load</button>
       </form>
       <div id="timeframes" class="timeframes" role="group" aria-label="Timeframe"></div>
+      <label class="mock-switch">
+        <input id="mock-toggle" type="checkbox" role="switch">
+        <span>Mock data</span>
+      </label>
       <div class="top-actions">
+        <button id="ledger-button" type="button" class="ghost" aria-pressed="false">Ledger</button>
         <button id="info-button" type="button" class="ghost">Info</button>
         <button id="users-button" type="button" class="ghost" hidden>Users</button>
         <span id="who" class="who"></span>
         <button id="signout" type="button" class="ghost">Sign out</button>
       </div>
     </header>
-    <div class="workspace">
+    <div id="desk" class="workspace">
       <aside class="rail">
+        <div id="volume-pin" class="pinned-control"></div>
         <div id="indicator-groups" class="groups"></div>
         <div class="favorites">
           <h2>Favorites</h2>
@@ -132,7 +138,7 @@
         <section class="institutional" aria-label="Institutional flow">
           <div class="inst-head">
             <h2>Institutional</h2>
-            <span id="inst-source" class="badge mock">Mock</span>
+            <span id="inst-source" class="badge"></span>
           </div>
           <div class="inst-track" aria-hidden="true">
             <span id="inst-buy"></span>
@@ -157,9 +163,10 @@
         <h2>Categories</h2>
         <div id="category-bars"></div>
         <h2>Votes</h2>
-        <ul id="vote-list"></ul>
+        <div id="vote-list"></div>
       </aside>
     </div>
+    <div id="ledger" class="ledger" hidden></div>
   </section>
 
   <div id="info-overlay" class="overlay" hidden>
@@ -170,9 +177,9 @@
       </div>
       <h3>Data sources</h3>
       <ul>
-        <li>Daily prices come from the Yahoo Finance chart API. If that call is empty or fails, the chart uses a deterministic mock random walk. The badge says yahoo or mock.</li>
-        <li>Earnings and dividends use Yahoo when a calendar or dividend field is available. Any missing label is mock-filled. AGM is mock-filled when Yahoo does not provide one.</li>
-        <li>The institutional buy/sell split is always mock data. It is labeled mock in the panel.</li>
+        <li>Daily prices come from the Yahoo Finance chart API. Mock data is optional and off until the Mock data switch is on. With the switch off and no Yahoo bars, the desk says “No live prices. Mock data is off.” With the switch on, a gap is filled by a deterministic mock random walk. The badge says yahoo, mock, or none.</li>
+        <li>Earnings and dividends use Yahoo when a calendar or dividend field is available. Mock fills, including the mock AGM, are added only while Mock data is on.</li>
+        <li>The institutional buy/sell split is mock data, and only while Mock data is on. With the switch off the panel says institutional data is off, and that vote stays out of the average.</li>
       </ul>
       <h3>How a vote becomes a verdict</h3>
       <p>Each active implemented indicator votes −1, 0, or +1. Placeholder rows vote N/A and are left out. The overall score is the mean of the votes that count. BUY if the mean is above 0.2, SELL if it is below −0.2, otherwise HOLD. Confidence is round(50 + mean × 50)%.</p>
@@ -186,7 +193,7 @@
         <li><strong>MACD 12/26/9.</strong> Buy when the MACD line is above the signal line. Sell when it is below.</li>
         <li><strong>Bollinger (20, 2).</strong> Buy at or below the lower band. Sell at or above the upper band.</li>
         <li><strong>Volume bars.</strong> Buy when volume is above 1.3× the previous 20-bar average on an up day. Sell on a down day with that volume.</li>
-        <li><strong>Institutional.</strong> Buy when buy% exceeds sell% by more than 15 points. Sell when sell% exceeds buy% by more than 15. Mock only.</li>
+        <li><strong>Institutional.</strong> Buy when buy% exceeds sell% by more than 15 points. Sell when sell% exceeds buy% by more than 15. Shown only while Mock data is on.</li>
         <li><strong>Placeholders.</strong> Ichimoku, PSAR, ADX/DMI, Stoch, CCI, Will%R, ROC, Keltner, Donchian, ATR, OBV, MFI, A/D Line, Pivots, and Fibonacci stay listed and vote N/A.</li>
       </ul>
       <p class="fine">Not financial advice.</p>
@@ -197,6 +204,9 @@
   <script src="/js/config.js"></script>
   <script src="/js/indicators.js"></script>
   <script src="/js/favorites.js"></script>
+  <script src="/js/ledger-score.js"></script>
+  <script src="/js/ledger-feed.js"></script>
+  <script src="/js/ledger.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

@@ -18,13 +18,16 @@ module.exports = withErrors(async function institutional(req, res) {
     send(res, 400, { error: parsed.error });
     return;
   }
-  const key = "institutional:" + parsed.exchange + ":" + parsed.symbol;
+  const allowMock = String(query.mock) === "1";
+  const key = "institutional:" + parsed.exchange + ":" + parsed.symbol + ":mock" + (allowMock ? "1" : "0");
   const cached = get(key);
   if (cached) {
     send(res, 200, cached);
     return;
   }
-  const payload = mockInstitutional(parsed.exchange, parsed.symbol);
+  const payload = allowMock
+    ? mockInstitutional(parsed.exchange, parsed.symbol)
+    : { source: "none", buyPct: null, sellPct: null };
   set(key, payload, TTL.institutional);
   send(res, 200, payload);
 });

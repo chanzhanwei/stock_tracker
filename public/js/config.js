@@ -79,7 +79,6 @@
         id: "volume",
         label: "Volume",
         items: [
-          { id: "volume", label: "Volume bars", implemented: true },
           { id: "obv", label: "OBV", implemented: false },
           { id: "mfi", label: "MFI", implemented: false },
           { id: "adline", label: "A/D Line", implemented: false },

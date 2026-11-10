@@ -209,16 +209,83 @@ async function main() {
     headers: { host: "localhost" },
     query: { exchange: "NASDAQ", symbol: "AAPL", days: "90" },
   }, live);
-  assert(live.statusCode === 200 && (live.body.source === "yahoo" || live.body.source === "mock"), "ohlcv source");
-  assert(live.body.bars && live.body.bars.length > 10 && live.body.bars[0].time && live.body.bars[0].close != null, "ohlcv bars");
+  assert(live.statusCode === 200 && (live.body.source === "yahoo" || live.body.source === "none"), "ohlcv source");
+  if (live.body.source === "yahoo") {
+    assert(live.body.bars && live.body.bars.length > 10 && live.body.bars[0].time && live.body.bars[0].close != null, "ohlcv bars");
+  }
 
   const fallback = mockRes();
   await ohlcv({
     method: "GET",
     headers: { host: "localhost" },
-    query: { exchange: "NASDAQ", symbol: "NOTREAL123", days: "40" },
+    query: { exchange: "NASDAQ", symbol: "NOTREAL123", days: "40", mock: "0" },
   }, fallback);
-  assert(fallback.statusCode === 200 && fallback.body.source === "mock" && fallback.body.bars.length > 5, "mock fallback");
+  assert(fallback.statusCode === 200 && fallback.body.source === "none" && fallback.body.bars.length === 0, "mock off returns no fabricated bars");
+
+  const mocked = mockRes();
+  await ohlcv({
+    method: "GET",
+    headers: { host: "localhost" },
+    query: { exchange: "NASDAQ", symbol: "NOTREAL123", days: "40", mock: "1" },
+  }, mocked);
+  assert(mocked.statusCode === 200 && mocked.body.source === "mock" && mocked.body.bars.length > 5, "mock on still fabricates bars");
+
+  const events = require("../api/events");
+  const quietEvents = mockRes();
+  await events({
+    method: "GET",
+    headers: { host: "localhost" },
+    query: { exchange: "NASDAQ", symbol: "NOTREAL123", mock: "0" },
+  }, quietEvents);
+  assert(quietEvents.statusCode === 200 && (quietEvents.body.events || []).every((row) => row.source !== "mock"), "events mock off");
+  assert(!(quietEvents.body.events || []).some((row) => row.type === "agm" && row.source === "mock"), "events mock off drops the mock AGM");
+
+  const institutional = require("../api/institutional");
+  const quietInst = mockRes();
+  await institutional({
+    method: "GET",
+    headers: { host: "localhost" },
+    query: { exchange: "NASDAQ", symbol: "NOTREAL123", mock: "0" },
+  }, quietInst);
+  assert(quietInst.statusCode === 200 && quietInst.body.source === "none" && quietInst.body.buyPct === null && quietInst.body.sellPct === null, "institutional mock off");
+
+  const offVote = signals.compute([{ time: "2020-01-02", open: 1, high: 1, low: 1, close: 1, volume: 1 }], {
+    toggles: { institutional: true },
+    institutional: { source: "none", buyPct: null, sellPct: null },
+  });
+  assert(offVote.votes.some((row) => row.id === "institutional" && row.vote === "na"), "institutional off stays out of the average");
+  assert(!config.groups.some((group) => group.items.some((item) => item.id === "volume")), "volume bars are outside the volume group");
+
+  const ledger = require("../lib/ledger-score");
+  assert(ledger.modelVersion === "v4-hypothesis", "ledger model version");
+  assert(ledger.KIND_ORDER.length === 16, "sixteen source kinds");
+  const excluded = { id: "tsla", kind: "FORM 4", action: "sell", excluded: true, daysAgo: 1, ticker: "TSLA", sector: "Consumer", from: 0.4, to: 0.1, marketCapB: 800 };
+  assert(ledger.contribution(excluded, "count", [excluded]) === 0, "excluded count");
+  assert(ledger.contribution(excluded, "dollar", [excluded]) === 0, "excluded dollar");
+  assert(ledger.contribution(excluded, "weighted", [excluded]) === 0, "excluded weighted");
+  const flat = { id: "brk", kind: "13F", action: "flat", daysAgo: 2, ticker: "BRK.A", sector: "Financials", from: 5, to: 5, marketCapB: 900 };
+  assert(ledger.contribution(flat, "count", [flat]) === 0 && ledger.contribution(flat, "dollar", [flat]) === 0 && ledger.contribution(flat, "weighted", [flat]) === 0, "flat contribution 0");
+  const nvda = { id: 1, kind: "FORM 4", action: "buy", daysAgo: 0, ticker: "NVDA", sector: "Technology", from: 0.2, to: 0.5, marketCapB: 3200, filerType: "insider" };
+  const nvdaOpt = { id: 11, kind: "OPTIONS", action: "buy", daysAgo: 0, ticker: "NVDA", sector: "Technology", from: 1, to: 2.2, marketCapB: 3200 };
+  assert(ledger.confirmationFor(nvda, [nvda, nvdaOpt]).count === 1 && ledger.confirmationFor(nvda, [nvda, nvdaOpt]).multiplier === 1.25, "one other kind confirms");
+  assert(ledger.confirmationFor(nvdaOpt, [nvda, nvdaOpt]).multiplier === 1.25, "options side confirms");
+  const sameA = { id: "a", kind: "FORM 4", action: "buy", daysAgo: 0, ticker: "GE", sector: "Industrials", from: 0, to: 1, marketCapB: 10 };
+  const sameB = { id: "b", kind: "FORM 4", action: "sell", daysAgo: 3, ticker: "GE", sector: "Industrials", from: 1, to: 0, marketCapB: 10 };
+  assert(ledger.confirmationFor(sameA, [sameA, sameB]).count === 0, "same kind does not confirm");
+  const indexRow = { id: "idx", kind: "INDEX", action: "buy", daysAgo: 3, ticker: "CAT", sector: "Industrials", from: 0, to: 1, marketCapB: 10, filerType: "activist", daysToEarnings: 6 };
+  assert(ledger.reputationWeight(indexRow) === 0.7 && ledger.earningsFactor(indexRow) === 1 && ledger.isMechanical(indexRow), "index mechanical factors");
+  const filing = { id: "f13", kind: "13F", action: "buy", daysAgo: 0, ticker: "UNH", sector: "Healthcare", from: 1, to: 2, marketCapB: 400, filerType: "passive-index" };
+  assert(ledger.decay(filing) === 0 && ledger.contribution(filing, "weighted", [filing]) === 0, "13f conviction is zero at calendar age 0");
+  assert(ledger.contribution(filing, "dollar", [filing]) === ((2 - 1) / 100) * 400, "13f dollar still uses market cap");
+  const earning = { id: "earn", kind: "FORM 4", action: "buy", daysAgo: 0, ticker: "NVDA", sector: "Technology", from: 0, to: 1, marketCapB: 1, daysToEarnings: 6, filerType: "insider" };
+  assert(ledger.earningsFactor(earning) === 1.25, "earnings factor inside 10 days");
+  const stale = { id: 31, kind: "FORM 4", action: "buy", daysAgo: 31, ticker: "TGT", sector: "Consumer", from: 0, to: 1, marketCapB: 100, filerType: "insider" };
+  assert(ledger.freshnessTier(31) === 4, "day 31 is freshness tier 4");
+  const series = ledger.trendSeries([stale], "dollar");
+  assert(series.length === 31 && series.every((point) => point.values.Consumer === 1), "day 31 is inside every chart point");
+  assert(ledger.historyLine({ historicalStats: { sampleSize: 3, winRate: 0.67, avgExcessReturn60d: 2.1 } }) === "History: insufficient sample (n=3) — hidden below n=5", "small history sample");
+  assert(ledger.historyLine({ historicalStats: { sampleSize: 8, winRate: 0.625, avgExcessReturn60d: 1.4 } }) === "History: net buyer on 5/8 similar signals, avg +1.4% 60d", "history sentence");
+  assert(fs.existsSync(path.join(root, "docs/LEDGER-Technical-Specification-v5.md")), "v5 spec is in the repo");
 
   if (failures.length) {
     console.error(failures.join("\n"));
