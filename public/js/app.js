@@ -6,6 +6,7 @@
     admin: false,
     devBypass: false,
     clerk: null,
+    publishableKey: "",
     pendingEmail: "",
     authMode: "email",
     exchange: STConfig.defaultExchange,
@@ -40,9 +41,40 @@
     return n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
   }
 
+  var CLERK_HOST_ERROR = "Clerk's publishable key points at an unfinished host, so the code cannot be sent. In the Clerk dashboard, switch to the Development instance and save that publishable key and its secret key in the Vercel project.";
+
+  function clerkFrontendHost(publishableKey) {
+    var parts = String(publishableKey || "").split("_");
+    if (parts.length < 3 || parts[0] !== "pk") return "";
+    var body = parts.slice(2).join("_").replace(/-/g, "+").replace(/_/g, "/");
+    var mod = body.length % 4;
+    if (mod) body += "====".slice(0, 4 - mod);
+    try {
+      var decoded = atob(body);
+      return decoded.charAt(decoded.length - 1) === "$" ? decoded.slice(0, -1) : decoded;
+    } catch (err) {
+      return "";
+    }
+  }
+
+  function clerkHostUsable(host) {
+    if (!host || host.charAt(0) === "." || host.indexOf(" ") !== -1) return false;
+    return host.indexOf(".") > 0 && host !== "clerk.accounts.dev";
+  }
+
   function clerkMessage(err) {
     var first = err && err.errors && err.errors[0];
-    return (first && (first.longMessage || first.message)) || (err && err.message) || "Sign-in failed.";
+    var message = (first && (first.longMessage || first.message)) || (err && err.message) || "Sign-in failed.";
+    if (message.indexOf("ClerkJS:") === 0) {
+      if (message.indexOf("Network error") !== -1 || message.indexOf(".clerk.accounts.dev") !== -1) return CLERK_HOST_ERROR;
+      return message.replace(/^ClerkJS:\s*/, "");
+    }
+    return message;
+  }
+
+  function idleGlass() {
+    var glass = $("boot-glass");
+    if (glass) glass.classList.add("is-idle");
   }
 
   function clerkCode(err) {
@@ -179,6 +211,9 @@
   async function sendCode(email) {
     var clerk = state.clerk;
     state.pendingEmail = email;
+    if (!clerk || !clerkHostUsable(clerkFrontendHost(state.publishableKey))) {
+      throw new Error(CLERK_HOST_ERROR);
+    }
     try {
       var signIn = await clerk.client.signIn.create({ identifier: email });
       var factor = (signIn.supportedFirstFactors || []).find(function (item) {
@@ -884,7 +919,15 @@
         return;
       }
       if (!cfg.publishableKey) {
+        idleGlass();
         $("boot-status").textContent = "Clerk keys are missing on this host. The allowlist is not bypassed.";
+        return;
+      }
+      state.publishableKey = cfg.publishableKey;
+      if (!clerkHostUsable(clerkFrontendHost(cfg.publishableKey))) {
+        setAuthStep("email");
+        showAuthError(CLERK_HOST_ERROR);
+        showScreen("screen-auth");
         return;
       }
       await loadClerk(cfg.publishableKey);
@@ -897,6 +940,7 @@
       setAuthStep("email");
       showScreen("screen-auth");
     } catch (err) {
+      idleGlass();
       $("boot-status").textContent = clerkMessage(err);
     }
   }

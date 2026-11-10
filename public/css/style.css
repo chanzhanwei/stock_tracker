@@ -92,6 +92,50 @@ input:focus, select:focus, button:focus-visible {
   letter-spacing: -0.03em;
   margin: 0;
 }
+.hourglass {
+  width: 36px;
+  height: 50px;
+  margin: 0.9rem 0 0.35rem;
+  color: var(--copper);
+}
+.hourglass-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.hourglass-spin { transform-origin: 32px 44px; animation: hourglass-flip 2.4s cubic-bezier(0.65, 0.05, 0.36, 1) infinite; }
+.glass {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sand { fill: currentColor; }
+.sand-top { transform-origin: 32px 22px; animation: sand-top 2.4s linear infinite; }
+.sand-bottom { transform-origin: 32px 66px; animation: sand-bottom 2.4s linear infinite; }
+.sand-stream { transform-origin: 32px 36px; animation: sand-stream 2.4s linear infinite; }
+.hourglass.is-idle .hourglass-spin,
+.hourglass.is-idle .sand-top,
+.hourglass.is-idle .sand-bottom,
+.hourglass.is-idle .sand-stream { animation: none; }
+@keyframes hourglass-flip {
+  0%, 42% { transform: rotate(0deg); }
+  50%, 92% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes sand-top {
+  0% { transform: scaleY(1); opacity: 1; }
+  40%, 100% { transform: scaleY(0.08); opacity: 0.35; }
+}
+@keyframes sand-bottom {
+  0% { transform: scaleY(0.08); opacity: 0.35; }
+  40%, 100% { transform: scaleY(1); opacity: 1; }
+}
+@keyframes sand-stream {
+  0%, 8% { opacity: 0; }
+  14%, 36% { opacity: 1; }
+  42%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hourglass-spin, .sand-top, .sand-bottom, .sand-stream { animation: none; }
+}
 h1, h2, h3 { font-weight: 600; }
 h1 { font-size: 1.7rem; margin: 0.2rem 0 0.4rem; }
 h2 { font-size: 0.92rem; margin: 1rem 0 0.4rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
