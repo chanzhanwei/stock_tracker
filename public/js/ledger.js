@@ -8,10 +8,10 @@
     metric: "weighted",
     tab: "points",
     query: "",
+    allowMock: false,
     filters: { kind: "", sector: "", action: "", excluded: "any", mechanical: "any" },
   };
   var root = null;
-  var onClose = null;
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -65,8 +65,12 @@
     return true;
   }
 
+  function shownFeed() {
+    return view.allowMock ? feed() : [];
+  }
+
   function spineItems() {
-    var rows = feed().filter(function (item) { return matchesQuery(item) && matchesFilters(item); });
+    var rows = shownFeed().filter(function (item) { return matchesQuery(item) && matchesFilters(item); });
     if (view.page === "watch") {
       var saved = readWatch();
       rows = rows.filter(function (item) { return saved.indexOf(item.ticker) >= 0; });
@@ -89,23 +93,22 @@
     var bar = el("div", "ledger-head");
     var brand = el("div", "ledger-brand");
     brand.appendChild(el("span", "ledger-mark"));
-    brand.appendChild(el("strong", null, "Ledger"));
+    brand.appendChild(el("strong", null, "Institution"));
     bar.appendChild(brand);
-    bar.appendChild(el("span", "ledger-pill", "Fixture tape"));
+    if (view.allowMock) bar.appendChild(el("span", "ledger-pill", "Fixture tape"));
     var nav = el("nav", "ledger-nav");
     nav.appendChild(navButton("feed", "Feed"));
     nav.appendChild(navButton("watch", "Watchlist"));
     nav.appendChild(navButton("info", "Methodology"));
     bar.appendChild(nav);
-    var close = el("button", "ghost", "Close");
-    close.type = "button";
-    close.addEventListener("click", function () { if (onClose) onClose(); });
-    bar.appendChild(close);
     return bar;
   }
 
   function note() {
-    return el("p", "ledger-note", "Not financial advice. Illustrative scores from weight table " + score().modelVersion + ". " + window.STLedgerFeed.label);
+    var text = "Not financial advice.";
+    if (view.allowMock) text += " Illustrative scores from weight table " + score().modelVersion + ". " + window.STLedgerFeed.label;
+    else text += " Institutional data is off.";
+    return el("p", "ledger-note", text);
   }
 
   function metricToggle() {
@@ -158,7 +161,8 @@
     });
     if (min === max) max = min + 1;
     function xOf(i) { return 36 + (i / 30) * 590; }
-    function yOf(value) { return 16 + (1 - (value - min) / (max - min)) * 176; }
+    function yOf(value) { return 12 + (1 - (value - min) / (max - min)) * 168; }
+    var dates = chartDates();
     var grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
     grid.setAttribute("x1", "36");
     grid.setAttribute("x2", "626");
@@ -180,7 +184,30 @@
       path.setAttribute("stroke-width", "2");
       svg.appendChild(path);
     });
+    svg.appendChild(chartDateLabel(dates.start, 36, "start"));
+    svg.appendChild(chartDateLabel(dates.end, 626, "end"));
     return svg;
+  }
+
+  function chartDates() {
+    var end = new Date();
+    var start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 30);
+    function fmt(date) {
+      return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    }
+    return { start: fmt(start), end: fmt(end) };
+  }
+
+  function chartDateLabel(text, x, anchor) {
+    var label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", String(x));
+    label.setAttribute("y", "214");
+    label.setAttribute("fill", "#9aa0a8");
+    label.setAttribute("font-size", "12");
+    label.setAttribute("font-family", "Outfit, Avenir Next, Segoe UI, sans-serif");
+    label.setAttribute("text-anchor", anchor);
+    label.textContent = text;
+    return label;
   }
 
   function summaryBlock() {
@@ -202,6 +229,13 @@
     var chartHost = document.getElementById("ledger-chart");
     var rows = document.getElementById("ledger-sectors");
     if (!chartHost || !rows) return;
+    if (!view.allowMock) {
+      chartHost.textContent = "";
+      chartHost.removeAttribute("data-lines");
+      rows.textContent = "";
+      rows.appendChild(el("p", "ledger-fine", "Institutional data is off."));
+      return;
+    }
     var points = score().trendSeries(feed(), view.metric);
     chartHost.textContent = "";
     chartHost.appendChild(chartSvg(points));
@@ -305,7 +339,7 @@
     node.appendChild(el("p", "ledger-summary", api.summaryLine(item)));
     if (item.excluded) node.appendChild(el("p", "ledger-meta", "Excluded: " + (item.excludeReason || "excluded")));
     if (api.isMechanical(item)) node.appendChild(el("p", "ledger-badge mute", "Mechanical flow"));
-    var confirm = api.confirmationFor(item, feed());
+    var confirm = api.confirmationFor(item, shownFeed());
     if (confirm.count > 0) {
       var noun = confirm.count === 1 ? "source" : "sources";
       node.appendChild(el("p", "ledger-confirm", confirm.count + " confirming " + noun + " (×" + confirm.multiplier.toFixed(2) + ")"));
@@ -342,6 +376,10 @@
     var host = document.getElementById("ledger-spine");
     if (!host) return;
     host.textContent = "";
+    if (!view.allowMock) {
+      host.appendChild(el("p", "ledger-fine", "Institutional data is off."));
+      return;
+    }
     var rows = spineItems();
     if (!rows.length) {
       host.appendChild(el("p", "ledger-fine", view.page === "watch" && !readWatch().length
@@ -410,7 +448,7 @@
     spine.id = "ledger-spine";
     main.appendChild(spine);
     layout.appendChild(main);
-    layout.appendChild(sourcesPanel());
+    if (view.allowMock) layout.appendChild(sourcesPanel());
     wrap.appendChild(layout);
     return wrap;
   }
@@ -534,10 +572,14 @@
   }
 
   window.STLedger = {
-    open: function (host, close) {
+    open: function (host, allowMock) {
       root = host;
-      onClose = close;
+      view.allowMock = !!allowMock;
       render();
+    },
+    setMock: function (allowMock) {
+      view.allowMock = !!allowMock;
+      if (root) render();
     },
   };
 })();

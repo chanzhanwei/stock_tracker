@@ -34,10 +34,10 @@
     timeframes: timeframes,
     calendarDays: calendarDays,
     visibleDays: visibleDays,
-    defaultTimeframe: "6M",
+    defaultTimeframe: "1Y",
     defaultExchange: "NASDAQ",
     defaultSymbol: "AAPL",
-    defaultOn: ["sma20", "sma50", "ema21", "rsi", "macd", "volume", "institutional"],
+    defaultOn: ["smaCustom", "volume"],
     groups: [
       {
         id: "trend",

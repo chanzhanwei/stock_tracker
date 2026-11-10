@@ -1,6 +1,6 @@
 # stock_tracker
 
-Single-ticker technical dashboard for ASX, NASDAQ, NYSE, SP500, and HKEX. It loads daily prices and key events when you ask for a ticker, then turns the indicators you switch on into a Buy, Hold, or Sell verdict. Mock prices and the mock institutional split stay off until the Mock data switch is on. Ledger is a second screen of illustrative ownership signals.
+Single-ticker technical dashboard for ASX, NASDAQ, NYSE, SP500, and HKEX. It loads daily prices and key events when you ask for a ticker, then turns the indicators you switch on into a Buy, Hold, or Sell verdict. Mock prices, the mock institutional split, and the Institution tape stay off until the Mock data switch is on. Institution is a second screen of illustrative ownership signals.
 
 **Not financial advice.** Nothing in this app is a recommendation to buy or sell a security.
 

@@ -43,6 +43,8 @@ assert(symbols.calendarDaysForVisible(130) === 282, "6M calendar span");
 assert(symbols.calendarDaysForVisible(260) === 490, "1Y calendar span");
 assert(symbols.calendarDaysForVisible(1300) === 2154, "5Y calendar span");
 assert(config.calendarDays(1300) === 2154, "client calendar span");
+assert(config.defaultTimeframe === "1Y", "default timeframe is 1Y");
+assert(config.defaultOn.length === 2 && config.defaultOn.indexOf("smaCustom") >= 0 && config.defaultOn.indexOf("volume") >= 0, "default indicators are custom SMA and volume");
 assert(symbols.clampDays(undefined) === 120, "default days");
 assert(symbols.clampDays("99999") === 3650, "max days");
 assert(symbols.clampDays("0") === 1, "min days");

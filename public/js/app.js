@@ -16,7 +16,7 @@
     ledgerOpen: false,
     timeframe: STConfig.defaultTimeframe,
     toggles: {},
-    customPeriod: 30,
+    customPeriod: 200,
     bars: [],
     events: [],
     institutional: null,
@@ -165,6 +165,7 @@
       if (item.implemented) {
         input.addEventListener("change", function () {
           state.toggles[item.id] = input.checked;
+          syncPanes();
           if (state.loaded) paint();
         });
       }
@@ -188,6 +189,15 @@
       host.appendChild(section);
     });
     $("ticker").value = state.symbol;
+    syncPanes();
+  }
+
+  function syncPanes() {
+    var rsi = $("rsi-pane");
+    var macd = $("macd-pane");
+    if (rsi) rsi.hidden = !state.toggles.rsi;
+    if (macd) macd.hidden = !state.toggles.macd;
+    if (state.charts) requestAnimationFrame(syncChartSizes);
   }
 
   function setAuthStep(step) {
@@ -336,10 +346,7 @@
     state.ledgerOpen = false;
     if ($("ledger")) $("ledger").hidden = true;
     if ($("desk")) $("desk").hidden = false;
-    if ($("ledger-button")) {
-      $("ledger-button").textContent = "Ledger";
-      $("ledger-button").setAttribute("aria-pressed", "false");
-    }
+    if ($("mode-slider")) setMode("stock");
     $("auth-code").value = "";
     setAuthStep("email");
     showAuthError("");
@@ -706,6 +713,7 @@
   }
 
   function paint() {
+    syncPanes();
     if (!state.charts) return;
     var visible = STConfig.visibleDays(state.timeframe);
     var result = STIndicators.compute(state.bars, {
@@ -947,19 +955,21 @@
     $("mock-toggle").addEventListener("change", function () {
       state.allowMock = $("mock-toggle").checked;
       if (state.loaded) loadTicker();
+      if (state.ledgerOpen && window.STLedger) STLedger.setMock(state.allowMock);
     });
-    $("ledger-button").addEventListener("click", function () {
-      setLedger(!state.ledgerOpen);
-    });
+    $("mode-stock").addEventListener("click", function () { setMode("stock"); });
+    $("mode-institution").addEventListener("click", function () { setMode("institution"); });
   }
 
-  function setLedger(open) {
+  function setMode(mode) {
+    var open = mode === "institution";
     state.ledgerOpen = open;
     $("desk").hidden = open;
     $("ledger").hidden = !open;
-    $("ledger-button").textContent = open ? "Desk" : "Ledger";
-    $("ledger-button").setAttribute("aria-pressed", open ? "true" : "false");
-    if (open) STLedger.open($("ledger"), function () { setLedger(false); });
+    $("mode-slider").dataset.mode = open ? "institution" : "stock";
+    $("mode-stock").setAttribute("aria-pressed", open ? "false" : "true");
+    $("mode-institution").setAttribute("aria-pressed", open ? "true" : "false");
+    if (open) STLedger.open($("ledger"), state.allowMock);
     else syncChartSizes();
   }
 

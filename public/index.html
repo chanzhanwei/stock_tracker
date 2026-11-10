@@ -100,9 +100,13 @@
         <input id="mock-toggle" type="checkbox" role="switch">
         <span>Mock data</span>
       </label>
+      <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
+        <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
+        <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
+        <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
+      </div>
       <div class="top-actions">
-        <button id="ledger-button" type="button" class="ghost" aria-pressed="false">Ledger</button>
-        <button id="info-button" type="button" class="ghost">Info</button>
+        <button id="info-button" type="button" class="ghost">Help</button>
         <button id="users-button" type="button" class="ghost" hidden>Users</button>
         <span id="who" class="who"></span>
         <button id="signout" type="button" class="ghost">Sign out</button>
@@ -148,10 +152,14 @@
         </section>
         <div id="chart-stack" class="chart-stack">
           <div id="chart-main" class="chart chart-main"></div>
-          <p class="pane-label">RSI 14</p>
-          <div id="chart-rsi" class="chart chart-sub"></div>
-          <p class="pane-label">MACD 12/26/9</p>
-          <div id="chart-macd" class="chart chart-sub"></div>
+          <div id="rsi-pane" class="sub-pane" hidden>
+            <p class="pane-label">RSI 14</p>
+            <div id="chart-rsi" class="chart chart-sub"></div>
+          </div>
+          <div id="macd-pane" class="sub-pane" hidden>
+            <p class="pane-label">MACD 12/26/9</p>
+            <div id="chart-macd" class="chart chart-sub"></div>
+          </div>
         </div>
         <p class="fine screen-note">Not financial advice.</p>
       </main>
@@ -179,7 +187,7 @@
       <ul>
         <li>Daily prices come from the Yahoo Finance chart API. Mock data is optional and off until the Mock data switch is on. With the switch off and no Yahoo bars, the desk says “No live prices. Mock data is off.” With the switch on, a gap is filled by a deterministic mock random walk. The badge says yahoo, mock, or none.</li>
         <li>Earnings and dividends use Yahoo when a calendar or dividend field is available. Mock fills, including the mock AGM, are added only while Mock data is on.</li>
-        <li>The institutional buy/sell split is mock data, and only while Mock data is on. With the switch off the panel says institutional data is off, and that vote stays out of the average.</li>
+        <li>The institutional buy/sell split is mock data, and only while Mock data is on. With the switch off the panel says institutional data is off, and that vote stays out of the average. The Institution screen uses the same switch. Off leaves that tape empty. On shows an illustrative fixture.</li>
       </ul>
       <h3>How a vote becomes a verdict</h3>
       <p>Each active implemented indicator votes −1, 0, or +1. Placeholder rows vote N/A and are left out. The overall score is the mean of the votes that count. BUY if the mean is above 0.2, SELL if it is below −0.2, otherwise HOLD. Confidence is round(50 + mean × 50)%.</p>
