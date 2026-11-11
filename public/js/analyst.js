@@ -25,7 +25,9 @@
 
   function setError(message) {
     var el = $("analyst-error");
-    if (el) el.textContent = message || "";
+    if (!el) return;
+    el.textContent = message || "";
+    if (message && el.scrollIntoView) el.scrollIntoView({ block: "center" });
   }
 
   function setStatus(message) {
