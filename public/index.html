@@ -103,7 +103,7 @@
       <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
         <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
         <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
-        <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
+        <button id="mode-analyst" type="button" aria-pressed="false">Analyst</button>
       </div>
       <div class="top-actions">
         <button id="info-button" type="button" class="ghost">Help</button>
@@ -174,7 +174,76 @@
         <div id="vote-list"></div>
       </aside>
     </div>
-    <div id="ledger" class="ledger" hidden></div>
+    <div id="analyst" class="analyst" hidden>
+      <p class="fine">Not financial advice.</p>
+      <p id="analyst-role" class="muted" hidden>Only the administrator can add sources, analyse, and save.</p>
+      <p id="analyst-error" class="error" role="alert"></p>
+      <p id="analyst-status" class="muted" role="status"></p>
+      <div id="analyst-desk" class="analyst-desk">
+        <label class="field">
+          <span>Source</span>
+          <select id="analyst-source"></select>
+        </label>
+        <form id="analyst-add" class="row">
+          <input id="analyst-name" type="text" maxlength="300" placeholder="Name, @handle, or URL" autocomplete="off" required aria-label="Source name">
+          <label class="select-wrap">
+            <span class="sr">Kind</span>
+            <select id="analyst-kind" aria-label="Source kind">
+              <option value="youtube">YouTube channel</option>
+              <option value="x">X user</option>
+              <option value="website">Website</option>
+            </select>
+          </label>
+          <button id="analyst-add-button" type="submit">Add source</button>
+        </form>
+        <div class="row">
+          <button id="analyst-fetch" type="button">Fetch next item</button>
+        </div>
+        <label class="field">
+          <span>Text</span>
+          <p id="analyst-title" class="muted"></p>
+          <a id="analyst-url" class="analyst-url" hidden target="_blank" rel="noopener"></a>
+          <textarea id="analyst-text" rows="10" spellcheck="true"></textarea>
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <select id="analyst-model"></select>
+        </label>
+        <div class="row">
+          <button id="analyst-run" type="button">Analyse</button>
+        </div>
+        <label class="field">
+          <span>Result</span>
+          <textarea id="analyst-result" rows="10" spellcheck="true" placeholder="The model result appears here. It needs a Short-term line and a Long-term line."></textarea>
+        </label>
+        <div class="row">
+          <button id="analyst-save" type="button">Save</button>
+        </div>
+      </div>
+      <section class="analyst-saved-wrap" aria-label="Saved analyses">
+        <h2>Saved</h2>
+        <div class="analyst-table-scroll">
+          <table id="analyst-saved" class="analyst-saved">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Analyst</th>
+                <th>Short-term</th>
+                <th>Long-term</th>
+                <th>Post</th>
+                <th>Model</th>
+                <th>Total</th>
+                <th>Input</th>
+                <th>Output</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody id="analyst-saved-body"></tbody>
+          </table>
+        </div>
+        <p id="analyst-empty" class="muted">No saved rows yet.</p>
+      </section>
+    </div>
   </section>
 
   <div id="info-overlay" class="overlay" hidden>
@@ -187,7 +256,7 @@
       <ul>
         <li>Daily prices come from the Yahoo Finance chart API. Mock data is optional and off until the Mock data switch is on. With the switch off and no Yahoo bars, the desk says “No live prices. Mock data is off.” With the switch on, a gap is filled by a deterministic mock random walk. The badge says yahoo, mock, or none.</li>
         <li>Earnings and dividends use Yahoo when a calendar or dividend field is available. Mock fills, including the mock AGM, are added only while Mock data is on.</li>
-        <li>The institutional buy/sell split is mock data, and only while Mock data is on. With the switch off the panel says institutional data is off, and that vote stays out of the average. The Institution screen uses the same switch. Off leaves that tape empty. On shows an illustrative fixture.</li>
+        <li>The institutional buy/sell split is mock data, and only while Mock data is on. With the switch off the panel says institutional data is off, and that vote stays out of the average.</li>
       </ul>
       <h3>How a vote becomes a verdict</h3>
       <p>Each active implemented indicator votes −1, 0, or +1. Placeholder rows vote N/A and are left out. The overall score is the mean of the votes that count. BUY if the mean is above 0.2, SELL if it is below −0.2, otherwise HOLD. Confidence is round(50 + mean × 50)%.</p>
@@ -212,9 +281,7 @@
   <script src="/js/config.js"></script>
   <script src="/js/indicators.js"></script>
   <script src="/js/favorites.js"></script>
-  <script src="/js/ledger-score.js"></script>
-  <script src="/js/ledger-feed.js"></script>
-  <script src="/js/ledger.js"></script>
+  <script src="/js/analyst.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

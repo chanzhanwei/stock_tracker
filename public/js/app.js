@@ -13,7 +13,7 @@
     symbol: "",
     allowMock: false,
     loaded: false,
-    ledgerOpen: false,
+    analystOpen: false,
     timeframe: STConfig.defaultTimeframe,
     toggles: {},
     customPeriod: 200,
@@ -343,9 +343,7 @@
     state.email = "";
     state.admin = false;
     state.authMode = "email";
-    state.ledgerOpen = false;
-    if ($("ledger")) $("ledger").hidden = true;
-    if ($("desk")) $("desk").hidden = false;
+    state.analystOpen = false;
     if ($("mode-slider")) setMode("stock");
     $("auth-code").value = "";
     setAuthStep("email");
@@ -955,21 +953,20 @@
     $("mock-toggle").addEventListener("change", function () {
       state.allowMock = $("mock-toggle").checked;
       if (state.loaded) loadTicker();
-      if (state.ledgerOpen && window.STLedger) STLedger.setMock(state.allowMock);
     });
     $("mode-stock").addEventListener("click", function () { setMode("stock"); });
-    $("mode-institution").addEventListener("click", function () { setMode("institution"); });
+    $("mode-analyst").addEventListener("click", function () { setMode("analyst"); });
   }
 
   function setMode(mode) {
-    var open = mode === "institution";
-    state.ledgerOpen = open;
+    var open = mode === "analyst";
+    state.analystOpen = open;
     $("desk").hidden = open;
-    $("ledger").hidden = !open;
-    $("mode-slider").dataset.mode = open ? "institution" : "stock";
+    $("analyst").hidden = !open;
+    $("mode-slider").dataset.mode = open ? "analyst" : "stock";
     $("mode-stock").setAttribute("aria-pressed", open ? "false" : "true");
-    $("mode-institution").setAttribute("aria-pressed", open ? "true" : "false");
-    if (open) STLedger.open($("ledger"), state.allowMock);
+    $("mode-analyst").setAttribute("aria-pressed", open ? "true" : "false");
+    if (open) STAnalyst.open({ admin: state.admin, api: api });
     else syncChartSizes();
   }
 

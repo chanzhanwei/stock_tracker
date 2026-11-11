@@ -2,6 +2,7 @@
 
 const { spawnSync } = require("child_process");
 const fs = require("fs");
+const http = require("http");
 const path = require("path");
 
 const root = path.join(__dirname, "..");
@@ -288,6 +289,168 @@ async function main() {
   assert(ledger.historyLine({ historicalStats: { sampleSize: 3, winRate: 0.67, avgExcessReturn60d: 2.1 } }) === "History: insufficient sample (n=3) — hidden below n=5", "small history sample");
   assert(ledger.historyLine({ historicalStats: { sampleSize: 8, winRate: 0.625, avgExcessReturn60d: 1.4 } }) === "History: net buyer on 5/8 similar signals, avg +1.4% 60d", "history sentence");
   assert(fs.existsSync(path.join(root, "docs/LEDGER-Technical-Specification-v5.md")), "v5 spec is in the repo");
+  assert(!fs.existsSync(path.join(root, "public/js/ledger.js")), "ledger screen removed");
+  assert(!fs.existsSync(path.join(root, "public/js/ledger-feed.js")), "fixture feed removed");
+  const page = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
+  const analystClient = fs.readFileSync(path.join(root, "public/js/analyst.js"), "utf8");
+  const fetchSrc = fs.readFileSync(path.join(root, "lib/analyst-fetch.js"), "utf8");
+  assert(page.includes(">Analyst<") && page.includes('id="mode-stock"') && !page.includes("mode-institution") && !page.includes("ledger.js"), "stock and analyst switch");
+  assert(!page.includes("LEDGER-Technical") && !page.includes("docs/LEDGER"), "spec is not shown");
+  assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
+  assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
+  assert(analystClient.includes("Paste the YouTube transcript"), "youtube transcript is pasted");
+
+  const models = require("../lib/analyst-models");
+  const parse = require("../lib/analyst-parse");
+  const fetched = require("../lib/analyst-fetch");
+  const priced = require("../lib/analyst-openrouter");
+  assert(models.DEFAULT_MODEL === "deepseek/deepseek-v4.1-flash-1017" && models.knownModel(models.DEFAULT_MODEL), "default model");
+  assert(models.MODELS.length === 25 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
+  const picks = parse.parsePicks("Note\nShort-term: NVDA\nLong-term: Semiconductors\n");
+  assert(picks.shortTerm === "NVDA" && picks.longTerm === "Semiconductors", "picks");
+  assert(parse.parsePicks("no labels").shortTerm === "" && parse.parsePicks("").longTerm === "", "missing picks");
+  const video = fetched.parseFeed("<entry><yt:videoId>abcdefghijk</yt:videoId><title>Hello &amp; welcome</title><media:description>not the transcript</media:description><published>2026-11-01T00:00:00+00:00</published></entry>");
+  assert(video.length === 1 && video[0].url === "https://www.youtube.com/watch?v=abcdefghijk" && video[0].body === "" && video[0].title === "Hello & welcome", "youtube rss skips captions");
+  assert(fetched.textForBox("youtube", video[0]) === "Hello & welcome\n\n", "youtube box starts with the title");
+  const xItems = fetched.itemsFromXPayload({ results: [{ type: "status", url: "https://x.com/ada/status/1", text: "A post", created_timestamp: 1700000000 }] });
+  assert(xItems.length === 1 && xItems[0].body === "A post" && xItems[0].publishedAt.startsWith("2023-11-14"), "x payload");
+  const costs = priced.costsFromUsage({
+    cost: 0.00015,
+    cost_details: { upstream_inference_prompt_cost: 0.00005, upstream_inference_completions_cost: 0.0001 },
+  });
+  assert(costs.totalCost === 0.00015 && costs.inputCost === 0.00005 && costs.outputCost === 0.0001, "openrouter costs");
+  const blankCosts = priced.costsFromUsage({});
+  assert(blankCosts.totalCost == null && blankCosts.inputCost == null && blankCosts.outputCost == null, "costs blank without a call");
+
+  const analystDb = require("../lib/analyst-db");
+  const analyst = require("../api/analyst");
+  const savedDb = process.env.DATABASE_URL;
+  const savedKey = process.env.OPENROUTER_API_KEY;
+  const testDb = process.env.ANALYST_TEST_DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  delete process.env.OPENROUTER_API_KEY;
+  await analystDb.resetForTests();
+
+  const desk = mockRes();
+  await analyst({ method: "GET", headers: { host: "localhost" } }, desk);
+  assert(desk.statusCode === 200 && desk.body.database === false && desk.body.message.indexOf("DATABASE_URL") !== -1, "analyst names the missing database");
+  assert(desk.body.defaultModel === models.DEFAULT_MODEL && desk.body.models.length === 25 && desk.body.sources.length === 0, "desk models without a database");
+  assert(JSON.stringify(desk.body).indexOf("sk-") === -1, "desk payload has no secret");
+
+  const missingKey = mockRes();
+  await analyst({
+    method: "POST",
+    headers: { host: "localhost" },
+    body: { action: "analyse", model: models.DEFAULT_MODEL, text: "A transcript about chips." },
+  }, missingKey);
+  assert(missingKey.statusCode === 503 && missingKey.body.message === "Set OPENROUTER_API_KEY on the server.", "missing openrouter key is plain");
+  assert(JSON.stringify(missingKey.body).indexOf("Bearer") === -1 && JSON.stringify(missingKey.body).indexOf("sk-") === -1, "analyse does not echo a key");
+
+  const addedReader = mockRes();
+  await users({
+    method: "POST",
+    headers: { host: "localhost" },
+    body: { action: "add", email: outsider },
+  }, addedReader);
+  const readerWrite = mockRes();
+  await analyst({
+    method: "POST",
+    headers: { host: "localhost", "x-dev-email": outsider },
+    body: { action: "add-source", name: "@example", kind: "x" },
+  }, readerWrite);
+  assert(readerWrite.statusCode === 403 && readerWrite.body.error === "admin_only", "reader cannot add a source");
+  const readerDesk = mockRes();
+  await analyst({
+    method: "GET",
+    headers: { host: "localhost", "x-dev-email": outsider },
+  }, readerDesk);
+  assert(readerDesk.statusCode === 200 && readerDesk.body.admin === false, "reader can open analyst");
+  const removedReader = mockRes();
+  await users({
+    method: "POST",
+    headers: { host: "localhost" },
+    body: { action: "remove", email: outsider },
+  }, removedReader);
+  assert(removedReader.statusCode === 200, "reader removed after analyst check");
+
+  if (testDb) {
+    process.env.DATABASE_URL = testDb;
+    delete process.env.OPENROUTER_API_KEY;
+    await analystDb.resetForTests();
+    const feedServer = http.createServer((req, res) => {
+      res.writeHead(200, { "Content-Type": "application/rss+xml; charset=utf-8" });
+      res.end("<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><item><title>Newer</title><link>https://example.com/newer</link><pubDate>Tue, 10 Nov 2026 00:00:00 GMT</pubDate><description>Newer body</description></item><item><title>Older</title><link>https://example.com/older</link><pubDate>Mon, 09 Nov 2026 00:00:00 GMT</pubDate><description>Older body</description></item></channel></rss>");
+    });
+    await new Promise((resolve) => feedServer.listen(0, "127.0.0.1", resolve));
+    const feedUrl = "http://127.0.0.1:" + feedServer.address().port + "/feed";
+    try {
+      const created = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "add-source", name: feedUrl, kind: "website" },
+      }, created);
+      assert(created.statusCode === 200 && created.body.source && created.body.source.kind === "website", "admin adds a source");
+      const sourceId = created.body.source.id;
+      const firstItem = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "fetch", sourceId: sourceId },
+      }, firstItem);
+      assert(firstItem.statusCode === 200 && firstItem.body.item && firstItem.body.item.url === "https://example.com/newer" && firstItem.body.item.text.indexOf("Newer body") !== -1, "fetch returns the newest unprocessed item");
+      const savedRow = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: {
+          action: "save",
+          itemId: firstItem.body.item.id,
+          resultText: "Short-term: NVDA\nLong-term: Semiconductors\nEdited note.",
+          model: models.DEFAULT_MODEL,
+          totalCost: 0.00015,
+          inputCost: 0.00005,
+          outputCost: 0.0001,
+        },
+      }, savedRow);
+      assert(savedRow.statusCode === 200 && savedRow.body.saved.postUrl === "https://example.com/newer" && savedRow.body.saved.shortTerm === "NVDA" && savedRow.body.saved.longTerm === "Semiconductors" && savedRow.body.saved.modelId === models.DEFAULT_MODEL && savedRow.body.saved.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
+      assert(Math.abs(savedRow.body.saved.totalCost - 0.00015) < 1e-12 && Math.abs(savedRow.body.saved.inputCost - 0.00005) < 1e-12 && Math.abs(savedRow.body.saved.outputCost - 0.0001) < 1e-12, "save stores the three costs");
+      const secondItem = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "fetch", sourceId: sourceId },
+      }, secondItem);
+      assert(secondItem.statusCode === 200 && secondItem.body.item && secondItem.body.item.url === "https://example.com/older", "processed item is skipped");
+      const again = mockRes();
+      await users({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "add", email: outsider },
+      }, again);
+      const readerRows = mockRes();
+      await analyst({
+        method: "GET",
+        headers: { host: "localhost", "x-dev-email": outsider },
+      }, readerRows);
+      assert(readerRows.statusCode === 200 && readerRows.body.results.some((row) => row.postUrl === "https://example.com/newer" && row.analystName === feedUrl), "reader sees the saved row");
+      await users({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "remove", email: outsider },
+      }, mockRes());
+    } finally {
+      await new Promise((resolve) => feedServer.close(resolve));
+    }
+  }
+
+  delete process.env.DATABASE_URL;
+  delete process.env.OPENROUTER_API_KEY;
+  await analystDb.resetForTests();
+  if (savedDb == null) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = savedDb;
+  if (savedKey == null) delete process.env.OPENROUTER_API_KEY;
+  else process.env.OPENROUTER_API_KEY = savedKey;
 
   if (failures.length) {
     console.error(failures.join("\n"));

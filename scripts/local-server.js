@@ -15,6 +15,7 @@ const routes = {
   "/api/events": require("../api/events"),
   "/api/institutional": require("../api/institutional"),
   "/api/users": require("../api/users"),
+  "/api/analyst": require("../api/analyst"),
 };
 
 const types = {
