@@ -294,7 +294,7 @@ async function main() {
   const page = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
   const analystClient = fs.readFileSync(path.join(root, "public/js/analyst.js"), "utf8");
   const fetchSrc = fs.readFileSync(path.join(root, "lib/analyst-fetch.js"), "utf8");
-  assert(page.includes(">Analyst<") && page.includes('id="mode-stock"') && !page.includes("mode-institution") && !page.includes("ledger.js"), "stock and analyst switch");
+  assert(page.includes(">Analyze<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && !page.includes(">Analyst<") && !page.includes("ledger.js"), "stock, analyze, and institution switch");
   assert(!page.includes("LEDGER-Technical") && !page.includes("docs/LEDGER"), "spec is not shown");
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
   assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
@@ -306,9 +306,25 @@ async function main() {
   const priced = require("../lib/analyst-openrouter");
   assert(models.DEFAULT_MODEL === "deepseek/deepseek-v4.1-flash-1017" && models.knownModel(models.DEFAULT_MODEL), "default model");
   assert(models.MODELS.length === 25 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
-  const picks = parse.parsePicks("Note\nShort-term: NVDA\nLong-term: Semiconductors\n");
-  assert(picks.shortTerm === "NVDA" && picks.longTerm === "Semiconductors", "picks");
-  assert(parse.parsePicks("no labels").shortTerm === "" && parse.parsePicks("").longTerm === "", "missing picks");
+  const picks = parse.parsePicks([
+    "Analyst: Ada",
+    "Short-term stock: NVDA",
+    "Long-term stock: AAPL",
+    "Short-term industry: Semiconductors",
+    "Long-term industry: Banks",
+    "Short-term avoid: TSLA",
+  ].join("\n"));
+  assert(picks.analystName === "Ada" && picks.shortTermStock === "NVDA" && picks.longTermStock === "AAPL" && picks.shortTermIndustry === "Semiconductors" && picks.longTermIndustry === "Banks" && picks.shortTermAvoid === "TSLA", "picks");
+  const missing = parse.parsePicks("no labels");
+  assert(missing.analystName === "" && missing.shortTermStock === "" && missing.shortTermAvoid === "", "missing picks");
+  assert(parse.parsePicks("Short-term: NVDA\nLong-term: Banks").shortTermStock === "", "old pick labels are not enough");
+  assert(fetched.KINDS.indexOf("substack") !== -1, "substack is a source kind");
+  assert(fetched.canonicalPostUrl("https://youtu.be/abcdefghijk?t=3") === "https://www.youtube.com/watch?v=abcdefghijk", "youtube url");
+  assert(fetched.canonicalPostUrl("https://twitter.com/Ada/status/20?s=1") === "https://x.com/ada/status/20", "x url");
+  assert(fetched.canonicalPostUrl("http://127.0.0.1:9/feed") === "http://127.0.0.1:9/feed", "local url keeps http");
+  assert(fetched.normalizeSourceName("lenny", "substack") === "https://lenny.substack.com", "substack name");
+  const status = fetched.itemFromXStatus({ tweet: { text: "Hello", author: { screen_name: "Ada" }, url: "https://twitter.com/Ada/status/20?s=1" } }, "ada", "20");
+  assert(status && status.item.url === "https://x.com/ada/status/20" && status.item.body === "Hello" && status.sourceName === "Ada", "x status");
   const video = fetched.parseFeed("<entry><yt:videoId>abcdefghijk</yt:videoId><title>Hello &amp; welcome</title><media:description>not the transcript</media:description><published>2026-11-01T00:00:00+00:00</published></entry>");
   assert(video.length === 1 && video[0].url === "https://www.youtube.com/watch?v=abcdefghijk" && video[0].body === "" && video[0].title === "Hello & welcome", "youtube rss skips captions");
   assert(fetched.textForBox("youtube", video[0]) === "Hello & welcome\n\n", "youtube box starts with the title");
@@ -378,6 +394,11 @@ async function main() {
     delete process.env.OPENROUTER_API_KEY;
     await analystDb.resetForTests();
     const feedServer = http.createServer((req, res) => {
+      if (req.url === "/post") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end("<html><head><title>Manual post</title></head><body><p>Manual body text</p></body></html>");
+        return;
+      }
       res.writeHead(200, { "Content-Type": "application/rss+xml; charset=utf-8" });
       res.end("<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><item><title>Newer</title><link>https://example.com/newer</link><pubDate>Tue, 10 Nov 2026 00:00:00 GMT</pubDate><description>Newer body</description></item><item><title>Older</title><link>https://example.com/older</link><pubDate>Mon, 09 Nov 2026 00:00:00 GMT</pubDate><description>Older body</description></item></channel></rss>");
     });
@@ -406,14 +427,22 @@ async function main() {
         body: {
           action: "save",
           itemId: firstItem.body.item.id,
-          resultText: "Short-term: NVDA\nLong-term: Semiconductors\nEdited note.",
+          resultText: [
+            "Analyst: Ada",
+            "Short-term stock: NVDA",
+            "Long-term stock: AAPL",
+            "Short-term industry: Semiconductors",
+            "Long-term industry: Banks",
+            "Short-term avoid: TSLA",
+            "Edited note.",
+          ].join("\n"),
           model: models.DEFAULT_MODEL,
           totalCost: 0.00015,
           inputCost: 0.00005,
           outputCost: 0.0001,
         },
       }, savedRow);
-      assert(savedRow.statusCode === 200 && savedRow.body.saved.postUrl === "https://example.com/newer" && savedRow.body.saved.shortTerm === "NVDA" && savedRow.body.saved.longTerm === "Semiconductors" && savedRow.body.saved.modelId === models.DEFAULT_MODEL && savedRow.body.saved.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
+      assert(savedRow.statusCode === 200 && savedRow.body.saved.postUrl === "https://example.com/newer" && savedRow.body.saved.source === feedUrl && savedRow.body.saved.analystName === "Ada" && savedRow.body.saved.shortTermStock === "NVDA" && savedRow.body.saved.longTermStock === "AAPL" && savedRow.body.saved.shortTermIndustry === "Semiconductors" && savedRow.body.saved.longTermIndustry === "Banks" && savedRow.body.saved.shortTermAvoid === "TSLA" && savedRow.body.saved.modelId === models.DEFAULT_MODEL && savedRow.body.saved.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
       assert(Math.abs(savedRow.body.saved.totalCost - 0.00015) < 1e-12 && Math.abs(savedRow.body.saved.inputCost - 0.00005) < 1e-12 && Math.abs(savedRow.body.saved.outputCost - 0.0001) < 1e-12, "save stores the three costs");
       const secondItem = mockRes();
       await analyst({
@@ -422,6 +451,50 @@ async function main() {
         body: { action: "fetch", sourceId: sourceId },
       }, secondItem);
       assert(secondItem.statusCode === 200 && secondItem.body.item && secondItem.body.item.url === "https://example.com/older", "processed item is skipped");
+      const repeat = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "open-url", url: "https://example.com/newer?utm_source=mail" },
+      }, repeat);
+      assert(repeat.statusCode === 200 && !repeat.body.item && /already analysed/i.test(repeat.body.message || ""), "analysed url is not opened again");
+      const manualUrl = "http://127.0.0.1:" + feedServer.address().port + "/post";
+      const manual = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "open-url", url: manualUrl },
+      }, manual);
+      assert(manual.statusCode === 200 && manual.body.item && manual.body.item.text.indexOf("Manual body text") !== -1 && manual.body.sources.some((source) => source.name === manualUrl), "manual url opens one post and saves the source");
+      const manualSaved = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: {
+          action: "save",
+          itemId: manual.body.item.id,
+          resultText: [
+            "Analyst: Bea",
+            "Short-term stock: MSFT",
+            "Long-term stock: none",
+            "Short-term industry: Software",
+            "Long-term industry: none",
+            "Short-term avoid: none",
+          ].join("\n"),
+          model: models.DEFAULT_MODEL,
+          totalCost: 0,
+          inputCost: 0,
+          outputCost: 0,
+        },
+      }, manualSaved);
+      assert(manualSaved.statusCode === 200 && manualSaved.body.saved.source === manualUrl && manualSaved.body.saved.analystName === "Bea" && manualSaved.body.saved.shortTermStock === "MSFT", "manual url result is saved");
+      const manualAgain = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "open-url", url: manualUrl },
+      }, manualAgain);
+      assert(manualAgain.statusCode === 200 && !manualAgain.body.item && /already analysed/i.test(manualAgain.body.message || ""), "saved manual url is not analysed again");
       const again = mockRes();
       await users({
         method: "POST",
@@ -433,7 +506,7 @@ async function main() {
         method: "GET",
         headers: { host: "localhost", "x-dev-email": outsider },
       }, readerRows);
-      assert(readerRows.statusCode === 200 && readerRows.body.results.some((row) => row.postUrl === "https://example.com/newer" && row.analystName === feedUrl), "reader sees the saved row");
+      assert(readerRows.statusCode === 200 && readerRows.body.results.some((row) => row.postUrl === "https://example.com/newer" && row.source === feedUrl && row.analystName === "Ada" && row.shortTermStock === "NVDA" && row.shortTermAvoid === "TSLA") && readerRows.body.results.some((row) => row.postUrl === manualUrl && row.analystName === "Bea"), "reader sees the saved rows");
       await users({
         method: "POST",
         headers: { host: "localhost" },

@@ -1,7 +1,7 @@
 "use strict";
 
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
-const { discover, normalizeSourceName } = require("../lib/analyst-fetch");
+const { canonicalPostUrl, discover, normalizeSourceName, openTarget } = require("../lib/analyst-fetch");
 const { analyse } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
@@ -12,6 +12,8 @@ const {
   getSource,
   takeNext,
   saveResult,
+  isProcessedUrl,
+  openManual,
 } = require("../lib/analyst-db");
 const { readBody, requireAdmin, requireUser, send, withErrors } = require("../lib/allowlist");
 
@@ -50,8 +52,8 @@ function sendMapped(res, err) {
   const code = err && err.code;
   const status = STATUS[code] || 500;
   const message = STATUS[code]
-    ? (err.message || "The Analyst desk could not complete that step.")
-    : "The Analyst desk could not complete that step.";
+    ? (err.message || "The Analyze desk could not complete that step.")
+    : "The Analyze desk could not complete that step.";
   send(res, status, { error: STATUS[code] ? code : "internal", message: message });
 }
 
@@ -106,7 +108,7 @@ async function handle(req, res) {
     return;
   }
   if (req.method !== "POST") {
-    send(res, 405, { error: "method_not_allowed", message: "The Analyst desk did not understand that request." });
+    send(res, 405, { error: "method_not_allowed", message: "The Analyze desk did not understand that request." });
     return;
   }
   const admin = await requireAdmin(req, res);
@@ -115,7 +117,7 @@ async function handle(req, res) {
   try {
     body = await readBody(req);
   } catch (err) {
-    send(res, 400, { error: "bad_request", message: "The Analyst desk did not understand that request." });
+    send(res, 400, { error: "bad_request", message: "The Analyze desk did not understand that request." });
     return;
   }
   const action = body && body.action;
@@ -132,6 +134,20 @@ async function handle(req, res) {
       return;
     }
     send(res, 200, await fetchNext(body.sourceId));
+    return;
+  }
+  if (action === "open-url") {
+    const canonical = canonicalPostUrl(body && body.url);
+    if (await isProcessedUrl(canonical)) {
+      send(res, 200, {
+        item: null,
+        message: "That post is already analysed.",
+        sources: await listSources(),
+      });
+      return;
+    }
+    const target = await openTarget(body.url);
+    send(res, 200, await openManual(target, admin.email));
     return;
   }
   if (action === "analyse") {
@@ -160,7 +176,7 @@ async function handle(req, res) {
     send(res, 200, { saved: saved, results: results });
     return;
   }
-  send(res, 400, { error: "invalid_action", message: "The Analyst desk did not understand that request." });
+  send(res, 400, { error: "invalid_action", message: "The Analyze desk did not understand that request." });
 }
 
 module.exports = withErrors(async function analyst(req, res) {

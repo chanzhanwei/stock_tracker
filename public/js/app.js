@@ -955,18 +955,23 @@
       if (state.loaded) loadTicker();
     });
     $("mode-stock").addEventListener("click", function () { setMode("stock"); });
-    $("mode-analyst").addEventListener("click", function () { setMode("analyst"); });
+    $("mode-analyze").addEventListener("click", function () { setMode("analyze"); });
+    $("mode-institution").addEventListener("click", function () { setMode("institution"); });
   }
 
   function setMode(mode) {
-    var open = mode === "analyst";
-    state.analystOpen = open;
-    $("desk").hidden = open;
-    $("analyst").hidden = !open;
-    $("mode-slider").dataset.mode = open ? "analyst" : "stock";
-    $("mode-stock").setAttribute("aria-pressed", open ? "false" : "true");
-    $("mode-analyst").setAttribute("aria-pressed", open ? "true" : "false");
-    if (open) STAnalyst.open({ admin: state.admin, api: api });
+    var analyze = mode === "analyze";
+    var institution = mode === "institution";
+    state.analystOpen = analyze || institution;
+    $("desk").hidden = analyze || institution;
+    $("analyst").hidden = !analyze;
+    $("institution").hidden = !institution;
+    $("mode-slider").dataset.mode = institution ? "institution" : analyze ? "analyze" : "stock";
+    $("mode-stock").setAttribute("aria-pressed", (!analyze && !institution) ? "true" : "false");
+    $("mode-analyze").setAttribute("aria-pressed", analyze ? "true" : "false");
+    $("mode-institution").setAttribute("aria-pressed", institution ? "true" : "false");
+    if (analyze) STAnalyst.open({ admin: state.admin, api: api });
+    else if (institution) STAnalyst.openInstitution({ admin: state.admin, api: api });
     else syncChartSizes();
   }
 

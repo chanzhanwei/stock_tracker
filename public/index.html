@@ -103,7 +103,8 @@
       <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
         <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
         <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
-        <button id="mode-analyst" type="button" aria-pressed="false">Analyst</button>
+        <button id="mode-analyze" type="button" aria-pressed="false">Analyze</button>
+        <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
       </div>
       <div class="top-actions">
         <button id="info-button" type="button" class="ghost">Help</button>
@@ -176,7 +177,7 @@
     </div>
     <div id="analyst" class="analyst" hidden>
       <p class="fine">Not financial advice.</p>
-      <p id="analyst-role" class="muted" hidden>Only the administrator can add sources, analyse, and save.</p>
+      <p id="analyst-role" class="muted" hidden>Only the administrator can add sources, analyse, and save. Saved results are on Institution.</p>
       <p id="analyst-error" class="error" role="alert"></p>
       <p id="analyst-status" class="muted" role="status"></p>
       <div id="analyst-desk" class="analyst-desk">
@@ -184,6 +185,10 @@
           <span>Source</span>
           <select id="analyst-source"></select>
         </label>
+        <form id="analyst-url-form" class="row">
+          <input id="analyst-url-input" type="text" maxlength="2000" placeholder="Or paste a URL" autocomplete="off" spellcheck="false" aria-label="Source URL">
+          <button id="analyst-open-url" type="submit">Open URL</button>
+        </form>
         <form id="analyst-add" class="row">
           <input id="analyst-name" type="text" maxlength="300" placeholder="Name, @handle, or URL" autocomplete="off" required aria-label="Source name">
           <label class="select-wrap">
@@ -191,6 +196,7 @@
             <select id="analyst-kind" aria-label="Source kind">
               <option value="youtube">YouTube channel</option>
               <option value="x">X user</option>
+              <option value="substack">Substack</option>
               <option value="website">Website</option>
             </select>
           </label>
@@ -214,35 +220,35 @@
         </div>
         <label class="field">
           <span>Result</span>
-          <textarea id="analyst-result" rows="10" spellcheck="true" placeholder="The model result appears here. It needs a Short-term line and a Long-term line."></textarea>
+          <textarea id="analyst-result" rows="10" spellcheck="true" placeholder="The model result appears here. It needs Analyst, Short-term stock, Long-term stock, Short-term industry, Long-term industry, and Short-term avoid lines."></textarea>
         </label>
         <div class="row">
           <button id="analyst-save" type="button">Save</button>
         </div>
       </div>
-      <section class="analyst-saved-wrap" aria-label="Saved analyses">
-        <h2>Saved</h2>
-        <div class="analyst-table-scroll">
-          <table id="analyst-saved" class="analyst-saved">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Analyst</th>
-                <th>Short-term</th>
-                <th>Long-term</th>
-                <th>Post</th>
-                <th>Model</th>
-                <th>Total</th>
-                <th>Input</th>
-                <th>Output</th>
-                <th>Result</th>
-              </tr>
-            </thead>
-            <tbody id="analyst-saved-body"></tbody>
-          </table>
-        </div>
-        <p id="analyst-empty" class="muted">No saved rows yet.</p>
-      </section>
+    </div>
+    <div id="institution" class="analyst" hidden>
+      <p class="fine">Not financial advice.</p>
+      <p id="institution-error" class="error" role="alert"></p>
+      <h2>Saved analyses</h2>
+      <div class="analyst-table-scroll">
+        <table id="institution-saved" class="analyst-saved">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Source</th>
+              <th>Analyst name</th>
+              <th>Short-term stock</th>
+              <th>Long-term stock</th>
+              <th>Short-term industry</th>
+              <th>Long-term industry</th>
+              <th>Short-term avoid</th>
+            </tr>
+          </thead>
+          <tbody id="institution-body"></tbody>
+        </table>
+      </div>
+      <p id="institution-empty" class="muted">No saved rows yet.</p>
     </div>
   </section>
 

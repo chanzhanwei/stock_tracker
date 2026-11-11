@@ -34,11 +34,11 @@
   }
 
   function explain(body) {
-    if (!body) return "The Analyst desk could not complete that step.";
+    if (!body) return "The Analyze desk could not complete that step.";
     if (body.error === "admin_only") return "Only the administrator can add sources, analyse, and save.";
     if (body.message) return body.message;
     if (body.error === "unauthorized") return "Sign in again.";
-    return "The Analyst desk could not complete that step.";
+    return "The Analyze desk could not complete that step.";
   }
 
   async function post(payload) {
@@ -63,6 +63,7 @@
   function kindLabel(kind) {
     if (kind === "youtube") return "YouTube channel";
     if (kind === "x") return "X user";
+    if (kind === "substack") return "Substack";
     if (kind === "website") return "Website";
     return kind || "";
   }
@@ -111,9 +112,9 @@
     syncPlaceholder();
   }
 
-  function renderResults(results) {
-    var body = $("analyst-saved-body");
-    var empty = $("analyst-empty");
+  function renderInstitution(results) {
+    var body = $("institution-body");
+    var empty = $("institution-empty");
     if (!body) return;
     body.textContent = "";
     var rows = results || [];
@@ -124,28 +125,26 @@
         var td = document.createElement("td");
         td.textContent = text == null ? "" : String(text);
         tr.appendChild(td);
-        return td;
       }
       cell(row.date);
-      cell(row.analystName);
-      cell(row.shortTerm);
-      cell(row.longTerm);
-      var linkCell = document.createElement("td");
+      var sourceCell = document.createElement("td");
       if (row.postUrl) {
         var link = document.createElement("a");
         link.href = row.postUrl;
         link.target = "_blank";
         link.rel = "noopener";
-        link.textContent = row.postUrl;
-        linkCell.appendChild(link);
+        link.textContent = row.source || row.postUrl;
+        sourceCell.appendChild(link);
+      } else {
+        sourceCell.textContent = row.source || "";
       }
-      tr.appendChild(linkCell);
-      cell(row.modelId);
-      cell(money(row.totalCost));
-      cell(money(row.inputCost));
-      cell(money(row.outputCost));
-      var note = cell(row.resultText || "");
-      note.className = "analyst-result-cell";
+      tr.appendChild(sourceCell);
+      cell(row.analystName);
+      cell(row.shortTermStock);
+      cell(row.longTermStock);
+      cell(row.shortTermIndustry);
+      cell(row.longTermIndustry);
+      cell(row.shortTermAvoid);
       body.appendChild(tr);
     });
   }
@@ -172,6 +171,10 @@
       lastRun = null;
     }
     if (title) title.textContent = item.title || "";
+    if (item.sourceId) {
+      var select = $("analyst-source");
+      if (select) select.value = item.sourceId;
+    }
     if (link) {
       link.hidden = !item.url;
       link.href = item.url || "";
@@ -187,20 +190,27 @@
     if (note) note.hidden = admin;
   }
 
-  async function refresh() {
-    if (!api) return;
+  async function loadDesk() {
+    if (!api) return null;
     var res = await api("/api/analyst");
     var body = {};
     try { body = await res.json(); } catch (err) { body = {}; }
-    if (!res.ok) {
-      setError(explain(body));
-      return;
-    }
+    if (!res.ok) return { error: explain(body) };
     models = body.models || [];
     defaultModel = body.defaultModel || (models[0] || "");
+    return body;
+  }
+
+  async function refresh() {
+    var body = await loadDesk();
+    if (!body) return;
+    if (body.error) {
+      setError(body.error);
+      return;
+    }
     renderModels();
     renderSources(body.sources || []);
-    renderResults(body.results || []);
+    renderInstitution(body.results || []);
     if (body.message) setError(body.message);
     else setError("");
   }
@@ -235,7 +245,7 @@
     setError("");
     setStatus("");
     if (!selectedSourceId()) {
-      setError("Choose a saved source.");
+      setError("Choose a saved source, or paste a URL.");
       return;
     }
     var button = $("analyst-fetch");
@@ -326,10 +336,10 @@
         setError(explain(result.body));
         return;
       }
-      renderResults(result.body.results || []);
+      renderInstitution(result.body.results || []);
       current = null;
       lastRun = null;
-      setStatus("Saved. The next fetch skips that item.");
+      setStatus("Saved. That post will not be analysed again.");
     } catch (err) {
       setError("The result was not saved.");
     } finally {
@@ -337,8 +347,44 @@
     }
   }
 
+  async function openUrl(event) {
+    event.preventDefault();
+    setError("");
+    setStatus("");
+    var url = $("analyst-url-input").value.trim();
+    if (!url) {
+      setError("Paste a URL, or choose a saved source.");
+      return;
+    }
+    var button = $("analyst-open-url");
+    button.disabled = true;
+    try {
+      var result = await post({ action: "open-url", url: url });
+      if (!result.ok) {
+        setError(explain(result.body));
+        return;
+      }
+      if (result.body.sources) {
+        renderSources(result.body.sources, result.body.item && result.body.item.sourceId);
+      }
+      if (result.body.item) {
+        showItem(result.body.item);
+        $("analyst-url-input").value = "";
+        if (result.body.item.pasteTranscript) setStatus("Paste the transcript into the text box.");
+        else setStatus("");
+      } else if (result.body.message) {
+        setStatus(result.body.message);
+      }
+    } catch (err) {
+      setError("That URL could not be opened.");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function wire() {
     $("analyst-add").addEventListener("submit", addSource);
+    $("analyst-url-form").addEventListener("submit", openUrl);
     $("analyst-fetch").addEventListener("click", fetchNext);
     $("analyst-run").addEventListener("click", runAnalyse);
     $("analyst-save").addEventListener("click", saveResult);
@@ -354,5 +400,20 @@
     return refresh();
   }
 
-  window.STAnalyst = { open: open };
+  async function openInstitution(ctx) {
+    api = ctx.api;
+    admin = !!ctx.admin;
+    if (!wired) wire();
+    var note = $("institution-error");
+    var body = await loadDesk();
+    if (!body) return;
+    if (body.error) {
+      if (note) note.textContent = body.error;
+      return;
+    }
+    renderInstitution(body.results || []);
+    if (note) note.textContent = body.message || "";
+  }
+
+  window.STAnalyst = { open: open, openInstitution: openInstitution };
 })();
