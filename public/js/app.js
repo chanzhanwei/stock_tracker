@@ -13,7 +13,7 @@
     symbol: "",
     allowMock: false,
     loaded: false,
-    ledgerOpen: false,
+    analystOpen: false,
     timeframe: STConfig.defaultTimeframe,
     toggles: {},
     customPeriod: 200,
@@ -343,9 +343,7 @@
     state.email = "";
     state.admin = false;
     state.authMode = "email";
-    state.ledgerOpen = false;
-    if ($("ledger")) $("ledger").hidden = true;
-    if ($("desk")) $("desk").hidden = false;
+    state.analystOpen = false;
     if ($("mode-slider")) setMode("stock");
     $("auth-code").value = "";
     setAuthStep("email");
@@ -955,21 +953,25 @@
     $("mock-toggle").addEventListener("change", function () {
       state.allowMock = $("mock-toggle").checked;
       if (state.loaded) loadTicker();
-      if (state.ledgerOpen && window.STLedger) STLedger.setMock(state.allowMock);
     });
     $("mode-stock").addEventListener("click", function () { setMode("stock"); });
+    $("mode-analyze").addEventListener("click", function () { setMode("analyze"); });
     $("mode-institution").addEventListener("click", function () { setMode("institution"); });
   }
 
   function setMode(mode) {
-    var open = mode === "institution";
-    state.ledgerOpen = open;
-    $("desk").hidden = open;
-    $("ledger").hidden = !open;
-    $("mode-slider").dataset.mode = open ? "institution" : "stock";
-    $("mode-stock").setAttribute("aria-pressed", open ? "false" : "true");
-    $("mode-institution").setAttribute("aria-pressed", open ? "true" : "false");
-    if (open) STLedger.open($("ledger"), state.allowMock);
+    var analyze = mode === "analyze";
+    var institution = mode === "institution";
+    state.analystOpen = analyze || institution;
+    $("desk").hidden = analyze || institution;
+    $("analyst").hidden = !analyze;
+    $("institution").hidden = !institution;
+    $("mode-slider").dataset.mode = institution ? "institution" : analyze ? "analyze" : "stock";
+    $("mode-stock").setAttribute("aria-pressed", (!analyze && !institution) ? "true" : "false");
+    $("mode-analyze").setAttribute("aria-pressed", analyze ? "true" : "false");
+    $("mode-institution").setAttribute("aria-pressed", institution ? "true" : "false");
+    if (analyze) STAnalyst.open({ admin: state.admin, api: api });
+    else if (institution) STAnalyst.openInstitution({ admin: state.admin, api: api });
     else syncChartSizes();
   }
 

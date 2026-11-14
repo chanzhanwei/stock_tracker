@@ -1,6 +1,6 @@
 # stock_tracker
 
-Single-ticker technical dashboard for ASX, NASDAQ, NYSE, SP500, and HKEX. It loads daily prices and key events when you ask for a ticker, then turns the indicators you switch on into a Buy, Hold, or Sell verdict. Mock prices, the mock institutional split, and the Institution tape stay off until the Mock data switch is on. Institution is a second screen of illustrative ownership signals.
+Single-ticker technical dashboard for ASX, NASDAQ, NYSE, SP500, and HKEX. It loads daily prices and key events when you ask for a ticker, then turns the indicators you switch on into a Buy, Hold, or Sell verdict. Mock prices and the mock institutional split stay off until the Mock data switch is on. Analyze reads a source or a pasted URL, runs OpenRouter, and saves the edited note. Institution lists those saved results.
 
 **Not financial advice.** Nothing in this app is a recommendation to buy or sell a security.
 
@@ -50,5 +50,28 @@ If both Clerk keys are absent **and** the request host is `localhost` or `127.0.
 Each load asks for the visible trading days plus 40 warmup days, converted with `ceil(n * 1.6) + 10` calendar days. The API clamps `days` to 1–3650 and defaults to 120.
 
 Favorites are stored in `localStorage` under `stock_tracker.favorites.<email>`. They are never sent to the server.
+
+## Analyze
+
+The top bar switches between Stock, Analyze, and Institution. Stock stays the default. There is no daily automatic pull.
+
+Only `chanzhanwei@gmail.com` can add a source, open a URL, fetch the next unprocessed item, analyse it, and save. Any other allowlisted email can read the saved rows on Institution.
+
+A source is either one already saved, or a URL pasted on the desk. Add a source with a name and a kind: YouTube channel, X user, Substack, or website. Fetch reads the next item from a saved source that has not been analysed yet. A pasted URL opens that post, or the next unprocessed post when the URL is a channel, profile, or site. The publication is saved, and a post that has already been analysed is not opened again.
+
+YouTube items come from the channel's public video RSS, or from the video page title when the URL is a single video. The app does not download captions; paste the transcript into the text box. An X user is read from the public FxEmbed timeline. A website or Substack is fetched from its URL, or from the RSS feed the page points at.
+
+Analyse sends the text box to OpenRouter from the server. The key stays in `OPENROUTER_API_KEY` and is never sent to the browser. The default model is `deepseek/deepseek-v4.1-flash-1017`. After a call, that model's row shows the total, input, and output cost for the rest of the browser session. Costs stay blank before a call.
+
+Save stores the edited result: the date, the source, the analyst name, a short-term stock, a long-term stock, a short-term industry, a long-term industry, a short-term stock to avoid, the post URL, the model id, and the three costs. The result needs an `Analyst:` line and those five pick lines. Use `none` when a line does not apply. Saving marks that post analysed, so a later fetch or the same URL skips it.
+
+Institution lists the saved rows: date, source, analyst name, and the five picks. The source name links to the post.
+
+Sources, analysed posts, and saved rows live in Neon Postgres through `DATABASE_URL`. The API creates the tables on the first request. The GitHub repo does not hold these rows.
+
+Create these on the server (Vercel project settings, and `.env.local` for `vercel dev`) if they are not already there. Do not commit the values.
+
+1. A Neon Postgres database, then set `DATABASE_URL` to its connection string.
+2. An OpenRouter API key, then set `OPENROUTER_API_KEY`.
 
 Charts use TradingView Lightweight Charts 4.1.3, vendored under `public/vendor/` (Apache License 2.0). The page does not load that library from a CDN.

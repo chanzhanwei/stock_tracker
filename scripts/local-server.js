@@ -8,6 +8,30 @@ const root = path.join(__dirname, "..");
 const publicDir = path.join(root, "public");
 const port = Number(process.env.PORT) || 4173;
 
+function loadLocalEnv(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const text = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    if (process.env[key]) continue;
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+loadLocalEnv(path.join(root, ".env.local"));
+
 const routes = {
   "/api/health": require("../api/health"),
   "/api/config": require("../api/config"),
@@ -15,6 +39,7 @@ const routes = {
   "/api/events": require("../api/events"),
   "/api/institutional": require("../api/institutional"),
   "/api/users": require("../api/users"),
+  "/api/analyst": require("../api/analyst"),
 };
 
 const types = {
