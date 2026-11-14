@@ -341,9 +341,11 @@ async function main() {
   const analystDb = require("../lib/analyst-db");
   const analyst = require("../api/analyst");
   const savedDb = process.env.DATABASE_URL;
+  const savedDirect = process.env.DATABASE_URL_UNPOOLED;
   const savedKey = process.env.OPENROUTER_API_KEY;
   const testDb = process.env.ANALYST_TEST_DATABASE_URL;
   delete process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL_UNPOOLED;
   delete process.env.OPENROUTER_API_KEY;
   await analystDb.resetForTests();
 
@@ -518,10 +520,13 @@ async function main() {
   }
 
   delete process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL_UNPOOLED;
   delete process.env.OPENROUTER_API_KEY;
   await analystDb.resetForTests();
   if (savedDb == null) delete process.env.DATABASE_URL;
   else process.env.DATABASE_URL = savedDb;
+  if (savedDirect == null) delete process.env.DATABASE_URL_UNPOOLED;
+  else process.env.DATABASE_URL_UNPOOLED = savedDirect;
   if (savedKey == null) delete process.env.OPENROUTER_API_KEY;
   else process.env.OPENROUTER_API_KEY = savedKey;
 
