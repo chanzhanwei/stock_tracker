@@ -459,18 +459,31 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 }
 .analyst-desk { max-width: 1100px; }
 .analyst button:disabled { cursor: default; }
-.analyst-tabs { display: flex; gap: 0.45rem; margin: 0.2rem 0 0.8rem; flex-wrap: wrap; }
-.analyst-tabs button[aria-selected="false"] {
+.analyst-tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0.2rem 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.analyst-tabs button {
   background: transparent;
-  color: var(--text);
-  border: 1px solid var(--line);
+  color: var(--muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.4rem 0.05rem 0.55rem;
+  margin-bottom: -1px;
+}
+.analyst-tabs button[aria-selected="true"] {
+  color: var(--copper);
+  border-bottom-color: var(--copper);
 }
 .analyst-panel .field { margin: 0.2rem 0 0.45rem; }
 .analyst-panel input, .analyst-panel select, #analyst-model { width: 100%; }
 .analyst-transcript { margin: 0.15rem 0 0.7rem; }
 .analyst-transcript a { color: var(--info); word-break: break-all; }
-.analyst-work { margin-top: 1.6rem; }
-.analyst-model { margin: 0 0 0.8rem; }
+.analyst-work { margin-top: 3rem; }
+.analyst-model { margin: 0 0 3rem; }
 .analyst-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;

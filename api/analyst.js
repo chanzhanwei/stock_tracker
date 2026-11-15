@@ -1,6 +1,7 @@
 "use strict";
 
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
+const { loadPrices } = require("../lib/analyst-prices");
 const { canonicalPostUrl, discover, normalizeSourceName, openTarget } = require("../lib/analyst-fetch");
 const { analyse } = require("../lib/analyst-openrouter");
 const {
@@ -63,6 +64,7 @@ function deskPayload(admin, extra) {
     database: configured(),
     models: MODELS,
     defaultModel: DEFAULT_MODEL,
+    prices: {},
     sources: [],
     results: [],
     message: configured() ? "" : DATABASE_MESSAGE,
@@ -70,10 +72,11 @@ function deskPayload(admin, extra) {
 }
 
 async function readDesk(user) {
-  if (!configured()) return deskPayload(user.admin);
+  const prices = await loadPrices(MODELS);
+  if (!configured()) return deskPayload(user.admin, { prices: prices });
   const sources = await listSources();
   const results = await listResults();
-  return deskPayload(user.admin, { sources: sources, results: results, message: "" });
+  return deskPayload(user.admin, { prices: prices, sources: sources, results: results, message: "" });
 }
 
 async function fetchNext(sourceId) {
