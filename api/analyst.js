@@ -58,7 +58,14 @@ function sendMapped(res, err) {
   const message = STATUS[code]
     ? (err.message || "The Analyze desk could not complete that step.")
     : "The Analyze desk could not complete that step.";
-  send(res, status, { error: STATUS[code] ? code : "internal", message: message });
+  const payload = { error: STATUS[code] ? code : "internal", message: message };
+  if (err && err.debug && typeof err.debug.prompt === "string") {
+    payload.debug = {
+      prompt: String(err.debug.prompt).slice(0, 200000),
+      response: String(err.debug.response || "").slice(0, 200000),
+    };
+  }
+  send(res, status, payload);
 }
 
 function deskPayload(admin, extra) {

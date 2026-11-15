@@ -204,6 +204,7 @@
         <div class="row analyst-extract">
           <button id="analyst-extract" type="button" disabled>Extract</button>
           <button id="analyst-paste" type="button" hidden>Paste from clipboard</button>
+          <span id="analyst-thinking" class="analyst-thinking" hidden><i></i><i></i><i></i></span>
         </div>
         <img id="analyst-paste-preview" class="analyst-paste-preview" alt="" hidden>
         <div class="analyst-work">
@@ -219,7 +220,6 @@
               </label>
               <div class="row analyst-action">
                 <button id="analyst-run" type="button" disabled>Analyse</button>
-                <img id="analyst-thinking" alt="" hidden width="28" height="28" src="https://cdn-icons-gif.flaticon.com/17771/17771113.gif">
               </div>
             </div>
             <div class="analyst-col">
@@ -233,6 +233,17 @@
             </div>
           </div>
         </div>
+        <details id="analyst-debug" class="analyst-debug">
+          <summary>Debug</summary>
+          <label class="field">
+            <span>To OpenRouter</span>
+            <textarea id="analyst-debug-request" rows="8" readonly spellcheck="false"></textarea>
+          </label>
+          <label class="field">
+            <span>From OpenRouter</span>
+            <textarea id="analyst-debug-response" rows="8" readonly spellcheck="false"></textarea>
+          </label>
+        </details>
       </div>
     </div>
     <div id="institution" class="analyst" hidden>
@@ -252,6 +263,7 @@
               <th>Long-term industry buy</th>
               <th>Long-term industry avoid</th>
               <th>Short-term stock avoid</th>
+              <th>Notes</th>
             </tr>
           </thead>
           <tbody id="institution-body"></tbody>
