@@ -2,7 +2,7 @@
 
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
-const { canonicalPostUrl, discover, normalizeSourceName, openTarget } = require("../lib/analyst-fetch");
+const { canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel } = require("../lib/analyst-fetch");
 const { analyse } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
@@ -13,6 +13,8 @@ const {
   getSource,
   takeNext,
   saveResult,
+  saveClipboard,
+  rememberLabel,
   isProcessedUrl,
   openManual,
 } = require("../lib/analyst-db");
@@ -27,6 +29,7 @@ const STATUS = {
   bad_youtube: 400,
   bad_model: 400,
   empty_text: 400,
+  bad_image: 400,
   picks_required: 400,
   bad_cost: 400,
   invalid_action: 400,
@@ -93,8 +96,15 @@ async function fetchNext(sourceId) {
   } catch (err) {
     warning = err && err.code && err.message ? err.message : "The source could not be fetched.";
   }
+  if (source.kind === "website" && !String(source.label || "").trim()) {
+    try {
+      await rememberLabel(source.id, await readSiteLabel(source.name));
+    } catch (err) { /* the hostname is shown until a later extract stores a name */ }
+  }
   try {
-    return await takeNext(source, discovered, warning);
+    const next = await takeNext(source, discovered, warning);
+    next.sources = await listSources();
+    return next;
   } catch (err) {
     if (err && err.code === "no_items") {
       return { item: null, message: err.message };
@@ -156,10 +166,27 @@ async function handle(req, res) {
   }
   if (action === "analyse") {
     const postUrl = typeof body.url === "string" ? body.url : "";
-    send(res, 200, await analyse(body.model, body.text, postUrl));
+    const image = typeof body.image === "string" ? body.image : "";
+    send(res, 200, await analyse(body.model, body.text, postUrl, image));
     return;
   }
   if (action === "save") {
+    if (body.clipboard) {
+      if (!knownModel(body.model)) {
+        send(res, 400, { error: "bad_model", message: "Choose a model from the list." });
+        return;
+      }
+      await saveClipboard({
+        resultText: body.resultText,
+        model: body.model,
+        totalCost: body.totalCost,
+        inputCost: body.inputCost,
+        outputCost: body.outputCost,
+        email: admin.email,
+      });
+      send(res, 200, { results: await listResults() });
+      return;
+    }
     if (!isUuid(body.itemId)) {
       send(res, 400, { error: "bad_request", message: "Fetch an item before saving." });
       return;

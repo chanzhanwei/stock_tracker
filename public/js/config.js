@@ -28,7 +28,6 @@
   }
 
   return {
-    disclaimer: "Not financial advice.",
     adminEmail: "chanzhanwei@gmail.com",
     exchanges: ["ASX", "NASDAQ", "NYSE", "SP500", "HKEX"],
     timeframes: timeframes,

@@ -300,7 +300,9 @@ async function main() {
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
   assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
   assert(analystClient.includes("Paste the YouTube transcript"), "youtube transcript is pasted");
-  assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Existing Source<"), "source tabs");
+  assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Clipboard<") && page.includes(">Existing Source<") && page.includes(">Paste from clipboard<"), "source tabs");
+  assert(!page.includes("Not financial advice."), "advice line is gone");
+  assert(/id="analyst-extract"[^>]*disabled/.test(page) && /id="analyst-run"[^>]*disabled/.test(page), "extract and analyse start disabled");
   assert(page.includes(">Extracted Text<") && page.includes(">Analysed Result<"), "text and result sit apart");
   assert(/id="analyst-save"[^>]*disabled/.test(page), "save starts disabled");
   assert(page.includes("https://cdn-icons-gif.flaticon.com/17771/17771113.gif"), "thinking gif");
@@ -317,14 +319,16 @@ async function main() {
   assert(models.DEFAULT_MODEL === "deepseek/deepseek-v4.1-flash-1017" && models.knownModel(models.DEFAULT_MODEL), "default model");
   assert(models.MODELS.length === 25 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
   const picks = parse.parsePicks([
+    "Website: TheStreet",
     "Analyst: Ada",
-    "Short-term stock: NVDA",
-    "Long-term stock: AAPL",
-    "Short-term industry: Semiconductors",
-    "Long-term industry: Banks",
-    "Short-term avoid: TSLA",
+    "Short-term stock buy: NVDA, AMD",
+    "Long-term stock buy: AAPL",
+    "Short-term industry buy: Semiconductors",
+    "Long-term industry buy: Banks",
+    "Long-term industry avoid: Coal",
+    "Short-term stock avoid: TSLA",
   ].join("\n"));
-  assert(picks.analystName === "Ada" && picks.shortTermStock === "NVDA" && picks.longTermStock === "AAPL" && picks.shortTermIndustry === "Semiconductors" && picks.longTermIndustry === "Banks" && picks.shortTermAvoid === "TSLA", "picks");
+  assert(picks.website === "TheStreet" && picks.analystName === "Ada" && picks.shortTermStock === "NVDA, AMD" && picks.longTermStock === "AAPL" && picks.shortTermIndustry === "Semiconductors" && picks.longTermIndustry === "Banks" && picks.longTermIndustryAvoid === "Coal" && picks.shortTermAvoid === "TSLA", "picks");
   const missing = parse.parsePicks("no labels");
   assert(missing.analystName === "" && missing.shortTermStock === "" && missing.shortTermAvoid === "", "missing picks");
   assert(parse.parsePicks("Short-term: NVDA\nLong-term: Banks").shortTermStock === "", "old pick labels are not enough");
@@ -346,7 +350,14 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("URL: https://example.com/post"), "prompt window");
+  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("Website: <post platform>") && prompt.includes("Short-term stock buy:") && prompt.includes("Long-term industry avoid:") && prompt.includes("Short-term stock avoid:") && prompt.includes("URL: https://example.com/post") && !prompt.includes("This is not financial advice."), "prompt window");
+  const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
+  assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
+  let badImage = "";
+  try { priced.userContent("", "not-an-image"); } catch (err) { badImage = err.code; }
+  assert(badImage === "bad_image", "image must be a data url");
+  assert(fetched.websiteLabel('<meta property="og:site_name" content="Stock Circle">', "https://stockcircle.com/portfolio") === "Stock Circle", "site name");
+  assert(fetched.websiteLabel("<html></html>", "https://www.stockcircle.com/x") === "stockcircle.com", "site name falls back to the host");
   const pricedRates = require("../lib/analyst-prices");
   const flash = pricedRates.perMillion("0.00000015", "0.0000006");
   assert(flash && flash.input === 0.15 && flash.output === 0.6 && flash.total === 0.75, "price per million tokens");
@@ -435,7 +446,7 @@ async function main() {
     const feedServer = http.createServer((req, res) => {
       if (req.url === "/post") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end("<html><head><title>Manual post</title></head><body><p>Manual body text</p></body></html>");
+        res.end("<html><head><title>Manual post</title><meta property=\"og:site_name\" content=\"Manual Desk\"></head><body><p>Manual body text</p></body></html>");
         return;
       }
       res.writeHead(200, { "Content-Type": "application/rss+xml; charset=utf-8" });
@@ -468,13 +479,15 @@ async function main() {
           itemId: firstItem.body.item.id,
           resultText: [
             "Date: 2026-11-01",
+            "Website: Example",
             "URL: https://example.com/newer",
             "Analyst: Ada",
-            "Short-term stock: NVDA",
-            "Long-term stock: AAPL",
-            "Short-term industry: Semiconductors",
-            "Long-term industry: Banks",
-            "Short-term avoid: TSLA",
+            "Short-term stock buy: NVDA",
+            "Long-term stock buy: AAPL",
+            "Short-term industry buy: Semiconductors",
+            "Long-term industry buy: Banks",
+            "Long-term industry avoid: Coal",
+            "Short-term stock avoid: TSLA",
             "Edited note.",
           ].join("\n"),
           model: models.DEFAULT_MODEL,
@@ -483,8 +496,9 @@ async function main() {
           outputCost: 0.0001,
         },
       }, savedRow);
-      assert(savedRow.statusCode === 200 && savedRow.body.saved.postUrl === "https://example.com/newer" && savedRow.body.saved.source === feedUrl && savedRow.body.saved.date === "2026-11-01" && savedRow.body.saved.analystName === "Ada" && savedRow.body.saved.shortTermStock === "NVDA" && savedRow.body.saved.longTermStock === "AAPL" && savedRow.body.saved.shortTermIndustry === "Semiconductors" && savedRow.body.saved.longTermIndustry === "Banks" && savedRow.body.saved.shortTermAvoid === "TSLA" && savedRow.body.saved.modelId === models.DEFAULT_MODEL && savedRow.body.saved.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
-      assert(Math.abs(savedRow.body.saved.totalCost - 0.00015) < 1e-12 && Math.abs(savedRow.body.saved.inputCost - 0.00005) < 1e-12 && Math.abs(savedRow.body.saved.outputCost - 0.0001) < 1e-12, "save stores the three costs");
+      const savedView = savedRow.body.results[0];
+      assert(savedRow.statusCode === 200 && savedView.postUrl === "https://example.com/newer" && savedView.source === "127.0.0.1" && savedView.website === "Example" && savedView.date === "2026-11-01" && savedView.analystName === "Ada" && savedView.shortTermStock === "NVDA" && savedView.longTermStock === "AAPL" && savedView.shortTermIndustry === "Semiconductors" && savedView.longTermIndustry === "Banks" && savedView.longTermIndustryAvoid === "Coal" && savedView.shortTermAvoid === "TSLA" && savedView.modelId === models.DEFAULT_MODEL && savedView.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
+      assert(Math.abs(savedView.totalCost - 0.00015) < 1e-12 && Math.abs(savedView.inputCost - 0.00005) < 1e-12 && Math.abs(savedView.outputCost - 0.0001) < 1e-12, "save stores the three costs");
       const secondItem = mockRes();
       await analyst({
         method: "POST",
@@ -515,12 +529,16 @@ async function main() {
           action: "save",
           itemId: manual.body.item.id,
           resultText: [
+            "Date: 2026-11-02",
+            "Website: Manual Desk",
+            "URL: " + manualUrl,
             "Analyst: Bea",
-            "Short-term stock: MSFT",
-            "Long-term stock: none",
-            "Short-term industry: Software",
-            "Long-term industry: none",
-            "Short-term avoid: none",
+            "Short-term stock buy: MSFT",
+            "Long-term stock buy: none",
+            "Short-term industry buy: Software",
+            "Long-term industry buy: none",
+            "Long-term industry avoid: none",
+            "Short-term stock avoid: none",
           ].join("\n"),
           model: models.DEFAULT_MODEL,
           totalCost: 0,
@@ -528,7 +546,38 @@ async function main() {
           outputCost: 0,
         },
       }, manualSaved);
-      assert(manualSaved.statusCode === 200 && manualSaved.body.saved.source === manualUrl && manualSaved.body.saved.analystName === "Bea" && manualSaved.body.saved.shortTermStock === "MSFT", "manual url result is saved");
+      const manualView = manualSaved.body.results[0];
+      assert(manualSaved.statusCode === 200 && manualView.source === "Manual Desk" && manualView.website === "Manual Desk" && manualView.analystName === "Bea" && manualView.shortTermStock === "MSFT", "manual url result is saved");
+      const clip = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: {
+          action: "save",
+          clipboard: true,
+          resultText: [
+            "Date: 2026-11-03",
+            "Website: Clipboard",
+            "URL: none",
+            "Analyst: Cleo",
+            "Short-term stock buy: NVDA",
+            "Long-term stock buy: none",
+            "Short-term industry buy: none",
+            "Long-term industry buy: none",
+            "Long-term industry avoid: none",
+            "Short-term stock avoid: none",
+          ].join("\n"),
+          model: models.DEFAULT_MODEL,
+          totalCost: 0,
+          inputCost: 0,
+          outputCost: 0,
+        },
+      }, clip);
+      const clipView = (clip.body.results || []).find((row) => row.analystName === "Cleo");
+      assert(clip.statusCode === 200 && clipView && clipView.source === "Clipboard" && clipView.postUrl === "" && clipView.shortTermStock === "NVDA", "clipboard save has no post");
+      const afterClip = mockRes();
+      await analyst({ method: "GET", headers: { host: "localhost" } }, afterClip);
+      assert(afterClip.statusCode === 200 && (afterClip.body.sources || []).every((source) => source.kind !== "clipboard"), "clipboard source stays out of the list");
       const manualAgain = mockRes();
       await analyst({
         method: "POST",

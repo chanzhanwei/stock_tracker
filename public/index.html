@@ -24,7 +24,6 @@
         </svg>
       </div>
       <p id="boot-status">Loading the desk.</p>
-      <p class="fine">Not financial advice.</p>
     </div>
   </section>
 
@@ -48,7 +47,6 @@
           <button id="auth-back" type="button" class="ghost" hidden>Use a different email</button>
         </div>
       </form>
-      <p class="fine">Not financial advice.</p>
     </div>
   </section>
 
@@ -58,7 +56,6 @@
       <h1>Not on the allowlist</h1>
       <p id="denied-copy"></p>
       <button id="denied-signout" type="button">Sign out</button>
-      <p class="fine">Not financial advice.</p>
     </div>
   </section>
 
@@ -80,7 +77,6 @@
         <ul id="admin-list"></ul>
         <button id="admin-back" type="button" class="ghost">Back to the dashboard</button>
       </div>
-      <p class="fine">Not financial advice.</p>
     </div>
   </section>
 
@@ -162,7 +158,6 @@
             <div id="chart-macd" class="chart chart-sub"></div>
           </div>
         </div>
-        <p class="fine screen-note">Not financial advice.</p>
       </main>
       <aside class="verdict-panel">
         <p class="eyebrow">Overall</p>
@@ -176,7 +171,6 @@
       </aside>
     </div>
     <div id="analyst" class="analyst" hidden>
-      <p class="fine">Not financial advice.</p>
       <p id="analyst-role" class="muted" hidden>Only the administrator can add sources, analyse, and save. Saved results are on Institution.</p>
       <p id="analyst-error" class="error" role="alert"></p>
       <p id="analyst-status" class="muted" role="status"></p>
@@ -184,6 +178,7 @@
         <div class="analyst-tabs" role="tablist" aria-label="Source">
           <button id="analyst-tab-url" type="button" role="tab" aria-selected="true" aria-controls="analyst-panel-url">New URL</button>
           <button id="analyst-tab-channel" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-channel">New Channel</button>
+          <button id="analyst-tab-clipboard" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-clipboard">Clipboard</button>
           <button id="analyst-tab-existing" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-existing">Existing Source</button>
         </div>
         <div id="analyst-panel-url" class="analyst-panel" role="tabpanel">
@@ -198,6 +193,7 @@
             <input id="analyst-channel-input" type="text" maxlength="2000" placeholder="Paste a channel, profile, or site URL" autocomplete="off" spellcheck="false">
           </label>
         </div>
+        <div id="analyst-panel-clipboard" class="analyst-panel" role="tabpanel" hidden></div>
         <div id="analyst-panel-existing" class="analyst-panel" role="tabpanel" hidden>
           <label class="field">
             <span>Source</span>
@@ -206,8 +202,10 @@
         </div>
         <p id="analyst-transcript" class="analyst-transcript" hidden>Extract transcript from: <a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
         <div class="row analyst-extract">
-          <button id="analyst-extract" type="button">Extract</button>
+          <button id="analyst-extract" type="button" disabled>Extract</button>
+          <button id="analyst-paste" type="button" hidden>Paste from clipboard</button>
         </div>
+        <img id="analyst-paste-preview" class="analyst-paste-preview" alt="" hidden>
         <div class="analyst-work">
           <label class="field analyst-model">
             <span>Model</span>
@@ -220,14 +218,14 @@
                 <textarea id="analyst-text" rows="12" spellcheck="true"></textarea>
               </label>
               <div class="row analyst-action">
-                <button id="analyst-run" type="button">Analyse</button>
+                <button id="analyst-run" type="button" disabled>Analyse</button>
                 <img id="analyst-thinking" alt="" hidden width="28" height="28" src="https://cdn-icons-gif.flaticon.com/17771/17771113.gif">
               </div>
             </div>
             <div class="analyst-col">
               <label class="field">
                 <span>Analysed Result</span>
-                <textarea id="analyst-result" rows="12" spellcheck="true" placeholder="The model result appears here. It needs Date, URL, Analyst, Short-term stock, Long-term stock, Short-term industry, Long-term industry, and Short-term avoid lines."></textarea>
+                <textarea id="analyst-result" rows="12" spellcheck="true" placeholder="The model result appears here. It needs Date, Website, URL, Analyst, Short-term stock buy, Long-term stock buy, Short-term industry buy, Long-term industry buy, Long-term industry avoid, and Short-term stock avoid lines."></textarea>
               </label>
               <div class="row analyst-action">
                 <button id="analyst-save" type="button" disabled>Save</button>
@@ -238,7 +236,6 @@
       </div>
     </div>
     <div id="institution" class="analyst" hidden>
-      <p class="fine">Not financial advice.</p>
       <p id="institution-error" class="error" role="alert"></p>
       <h2>Saved analyses</h2>
       <div class="analyst-table-scroll">
@@ -247,12 +244,14 @@
             <tr>
               <th>Date</th>
               <th>Source</th>
+              <th>Website</th>
               <th>Analyst name</th>
-              <th>Short-term stock</th>
-              <th>Long-term stock</th>
-              <th>Short-term industry</th>
-              <th>Long-term industry</th>
-              <th>Short-term avoid</th>
+              <th>Short-term stock buy</th>
+              <th>Long-term stock buy</th>
+              <th>Short-term industry buy</th>
+              <th>Long-term industry buy</th>
+              <th>Long-term industry avoid</th>
+              <th>Short-term stock avoid</th>
             </tr>
           </thead>
           <tbody id="institution-body"></tbody>
@@ -289,7 +288,6 @@
         <li><strong>Institutional.</strong> Buy when buy% exceeds sell% by more than 15 points. Sell when sell% exceeds buy% by more than 15. Shown only while Mock data is on.</li>
         <li><strong>Placeholders.</strong> Ichimoku, PSAR, ADX/DMI, Stoch, CCI, Will%R, ROC, Keltner, Donchian, ATR, OBV, MFI, A/D Line, Pivots, and Fibonacci stay listed and vote N/A.</li>
       </ul>
-      <p class="fine">Not financial advice.</p>
     </div>
   </div>
 
