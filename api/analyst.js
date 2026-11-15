@@ -147,11 +147,13 @@ async function handle(req, res) {
       return;
     }
     const target = await openTarget(body.url);
-    send(res, 200, await openManual(target, admin.email));
+    const mode = body.mode === "channel" || body.mode === "page" ? body.mode : "";
+    send(res, 200, await openManual(target, admin.email, mode));
     return;
   }
   if (action === "analyse") {
-    send(res, 200, await analyse(body.model, body.text));
+    const postUrl = typeof body.url === "string" ? body.url : "";
+    send(res, 200, await analyse(body.model, body.text, postUrl));
     return;
   }
   if (action === "save") {
