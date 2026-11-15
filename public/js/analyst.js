@@ -10,6 +10,9 @@
   var current = null;
   var lastRun = null;
   var tab = "url";
+  var step = { extract: false, analyse: false, save: false };
+  var busy = "";
+  var pastedImage = "";
 
   function $(id) { return document.getElementById(id); }
 
@@ -67,9 +70,71 @@
     return kind || "";
   }
 
-  function setSaveEnabled(enabled) {
-    var button = $("analyst-save");
-    if (button) button.disabled = !enabled;
+  function canExtract() {
+    if (tab === "url") return !!($("analyst-url-input") && $("analyst-url-input").value.trim());
+    if (tab === "channel") return !!($("analyst-channel-input") && $("analyst-channel-input").value.trim());
+    if (tab === "existing") return !!selectedSourceId();
+    return false;
+  }
+
+  function selectedKind() {
+    var select = $("analyst-source");
+    if (!select || select.selectedIndex < 0) return "";
+    var option = select.options[select.selectedIndex];
+    return option && option.dataset ? option.dataset.kind || "" : "";
+  }
+
+  function applySteps() {
+    var extract = $("analyst-extract");
+    var paste = $("analyst-paste");
+    var run = $("analyst-run");
+    var save = $("analyst-save");
+    var clipboard = tab === "clipboard";
+    if (extract) {
+      extract.hidden = clipboard;
+      extract.disabled = busy === "extract" || !step.extract;
+    }
+    if (paste) {
+      paste.hidden = !clipboard;
+      paste.disabled = busy === "paste";
+    }
+    if (run) run.disabled = busy === "analyse" || !step.analyse;
+    if (save) save.disabled = busy === "save" || !step.save;
+  }
+
+  function showImage(url) {
+    var preview = $("analyst-paste-preview");
+    pastedImage = url || "";
+    if (!preview) return;
+    if (!pastedImage) {
+      preview.removeAttribute("src");
+      preview.hidden = true;
+      return;
+    }
+    preview.src = pastedImage;
+    preview.hidden = false;
+  }
+
+  function resetStep() {
+    step.extract = canExtract();
+    step.analyse = false;
+    step.save = false;
+    if (tab !== "clipboard") showImage("");
+    applySteps();
+  }
+
+  function showExtractFailure(message) {
+    var box = $("analyst-text");
+    if (box) box.value = message || "";
+    setError("");
+    current = null;
+    lastRun = null;
+    step.analyse = false;
+    step.save = false;
+    step.extract = canExtract();
+    showTranscript(null);
+    syncPlaceholder();
+    applySteps();
   }
 
   function showTranscript(item) {
@@ -100,6 +165,7 @@
     [
       ["url", "analyst-tab-url", "analyst-panel-url"],
       ["channel", "analyst-tab-channel", "analyst-panel-channel"],
+      ["clipboard", "analyst-tab-clipboard", "analyst-panel-clipboard"],
       ["existing", "analyst-tab-existing", "analyst-panel-existing"],
     ].forEach(function (row) {
       var button = $(row[1]);
@@ -108,6 +174,8 @@
       if (button) button.setAttribute("aria-selected", active ? "true" : "false");
       if (panel) panel.hidden = !active;
     });
+    if (next !== "clipboard") showImage("");
+    resetStep();
   }
 
   function renderModels() {
@@ -138,7 +206,7 @@
       var option = document.createElement("option");
       option.value = source.id;
       option.dataset.kind = source.kind;
-      option.textContent = source.name + " — " + kindLabel(source.kind);
+      option.textContent = (source.displayName || source.name) + " — " + kindLabel(source.kind);
       if (source.id === selected) option.selected = true;
       select.appendChild(option);
     });
@@ -171,11 +239,13 @@
         sourceCell.textContent = row.source || "";
       }
       tr.appendChild(sourceCell);
+      cell(row.website);
       cell(row.analystName);
       cell(row.shortTermStock);
       cell(row.longTermStock);
       cell(row.shortTermIndustry);
       cell(row.longTermIndustry);
+      cell(row.longTermIndustryAvoid);
       cell(row.shortTermAvoid);
       body.appendChild(tr);
     });
@@ -185,7 +255,8 @@
     if (!item) {
       current = null;
       lastRun = null;
-      setSaveEnabled(false);
+      step.save = false;
+      applySteps();
       showTranscript(null);
       syncPlaceholder();
       return;
@@ -196,7 +267,8 @@
       $("analyst-text").value = item.text || "";
       $("analyst-result").value = "";
       lastRun = null;
-      setSaveEnabled(false);
+      step.save = false;
+      applySteps();
     }
     if (item.sourceId) {
       var select = $("analyst-source");
@@ -237,11 +309,12 @@
     renderInstitution(body.results || []);
     if (body.message) setError(body.message);
     else setError("");
+    applySteps();
   }
 
   function applyExtract(result) {
     if (!result.ok) {
-      setError(explain(result.body));
+      showExtractFailure(explain(result.body));
       return;
     }
     if (result.body.sources) {
@@ -249,46 +322,137 @@
     }
     if (result.body.item) {
       showItem(result.body.item);
+      step.extract = canExtract();
+      step.analyse = true;
+      step.save = false;
+      setError("");
+      applySteps();
       if (result.body.item.pasteTranscript) setStatus("Paste the YouTube transcript. Captions are not downloaded.");
       else setStatus("");
       return;
     }
-    setStatus(result.body.message || "");
+    showExtractFailure(result.body.message || "Nothing was extracted.");
+  }
+
+  function pointPopup(popup, url) {
+    if (!popup) return;
+    if (!url) {
+      popup.close();
+      return;
+    }
+    try { popup.opener = null; } catch (err) { /* a blocked popup has no window */ }
+    popup.location.href = url;
   }
 
   async function extract() {
     setError("");
     setStatus("");
-    var button = $("analyst-extract");
-    button.disabled = true;
+    if (tab === "existing" && !selectedSourceId()) {
+      showExtractFailure("Choose a saved source.");
+      return;
+    }
+    if (tab === "channel" && !$("analyst-channel-input").value.trim()) {
+      showExtractFailure("Paste a channel URL.");
+      return;
+    }
+    if (tab !== "existing" && tab !== "channel" && !$("analyst-url-input").value.trim()) {
+      showExtractFailure("Paste a URL.");
+      return;
+    }
+    var popup = null;
+    if (tab === "existing" && (selectedKind() === "website" || selectedKind() === "youtube")) {
+      popup = window.open("about:blank", "_blank");
+    }
+    busy = "extract";
+    applySteps();
     try {
       var result;
       if (tab === "existing") {
-        if (!selectedSourceId()) {
-          setError("Choose a saved source.");
-          return;
-        }
         result = await post({ action: "fetch", sourceId: selectedSourceId() });
       } else if (tab === "channel") {
-        var channel = $("analyst-channel-input").value.trim();
-        if (!channel) {
-          setError("Paste a channel URL.");
-          return;
-        }
-        result = await post({ action: "open-url", url: channel, mode: "channel" });
+        result = await post({ action: "open-url", url: $("analyst-channel-input").value.trim(), mode: "channel" });
       } else {
-        var url = $("analyst-url-input").value.trim();
-        if (!url) {
-          setError("Paste a URL.");
-          return;
-        }
-        result = await post({ action: "open-url", url: url, mode: "page" });
+        result = await post({ action: "open-url", url: $("analyst-url-input").value.trim(), mode: "page" });
       }
       applyExtract(result);
+      pointPopup(popup, result.ok && result.body.item ? result.body.item.url : "");
     } catch (err) {
-      setError("The text could not be extracted.");
+      showExtractFailure("The text could not be extracted.");
+      pointPopup(popup, "");
     } finally {
-      button.disabled = false;
+      busy = "";
+      applySteps();
+    }
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result || "")); };
+      reader.onerror = function () { reject(new Error("read")); };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function pasteClipboard() {
+    setError("");
+    setStatus("");
+    busy = "paste";
+    applySteps();
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        showExtractFailure("The clipboard could not be read.");
+        return;
+      }
+      var items = await navigator.clipboard.read();
+      var blob = null;
+      items.forEach(function (item) {
+        if (blob) return;
+        (item.types || []).forEach(function (type) {
+          if (!blob && type.indexOf("image/") === 0) blob = item.getType(type);
+        });
+      });
+      if (!blob) {
+        showImage("");
+        step.analyse = false;
+        step.save = false;
+        showExtractFailure("The clipboard does not contain an image.");
+        return;
+      }
+      blob = await blob;
+      if (blob.size > 3 * 1024 * 1024) {
+        showImage("");
+        step.analyse = false;
+        step.save = false;
+        showExtractFailure("That image is larger than 4 MB.");
+        return;
+      }
+      var dataUrl = await blobToDataUrl(blob);
+      if (dataUrl.length > 4 * 1024 * 1024) {
+        showImage("");
+        step.analyse = false;
+        step.save = false;
+        showExtractFailure("That image is larger than 4 MB.");
+        return;
+      }
+      showImage(dataUrl);
+      var box = $("analyst-text");
+      if (box) box.value = "";
+      current = null;
+      lastRun = null;
+      step.analyse = true;
+      step.save = false;
+      setError("");
+      setStatus("");
+      applySteps();
+    } catch (err) {
+      showImage("");
+      step.analyse = false;
+      step.save = false;
+      showExtractFailure("The clipboard could not be read.");
+    } finally {
+      busy = "";
+      applySteps();
     }
   }
 
@@ -296,13 +460,14 @@
     setError("");
     setStatus("");
     var text = $("analyst-text").value.trim();
-    if (!text) {
+    var image = tab === "clipboard" ? pastedImage : "";
+    if (!text && !image) {
       setError("The text box is empty.");
       return;
     }
-    var button = $("analyst-run");
     var thinking = $("analyst-thinking");
-    button.disabled = true;
+    busy = "analyse";
+    applySteps();
     if (thinking) thinking.hidden = false;
     setStatus("Analysing.");
     try {
@@ -312,10 +477,11 @@
         model: model,
         text: $("analyst-text").value,
         url: current && current.url ? current.url : "",
+        image: image,
       });
       if (!result.ok) {
         setStatus("");
-        setSaveEnabled(false);
+        step.save = false;
         setError(explain(result.body));
         return;
       }
@@ -328,14 +494,15 @@
       };
       renderModels();
       $("analyst-model").value = lastRun.model;
-      setSaveEnabled(true);
+      step.save = true;
       setStatus("You can edit the result before saving.");
     } catch (err) {
       setStatus("");
-      setSaveEnabled(false);
+      step.save = false;
       setError("OpenRouter could not be reached.");
     } finally {
-      button.disabled = false;
+      busy = "";
+      applySteps();
       if (thinking) thinking.hidden = true;
     }
   }
@@ -343,52 +510,67 @@
   async function saveResult() {
     setError("");
     setStatus("");
-    if (!current || !current.id) {
+    var clipboard = tab === "clipboard" && !!pastedImage;
+    if (!clipboard && (!current || !current.id)) {
       setError("Extract an item before saving.");
-      setSaveEnabled(false);
+      step.save = false;
+      applySteps();
       return;
     }
     if (!lastRun) {
       setError("Analyse the text before saving.");
-      setSaveEnabled(false);
+      step.save = false;
+      applySteps();
       return;
     }
-    var button = $("analyst-save");
-    button.disabled = true;
+    busy = "save";
+    applySteps();
     try {
-      var result = await post({
+      var payload = {
         action: "save",
-        itemId: current.id,
         resultText: $("analyst-result").value,
         model: lastRun.model,
         totalCost: lastRun.totalCost,
         inputCost: lastRun.inputCost,
         outputCost: lastRun.outputCost,
-      });
+      };
+      if (clipboard) payload.clipboard = true;
+      else payload.itemId = current.id;
+      var result = await post(payload);
       if (!result.ok) {
         setError(explain(result.body));
-        setSaveEnabled(true);
+        step.save = true;
         return;
       }
       renderInstitution(result.body.results || []);
       current = null;
       lastRun = null;
-      setSaveEnabled(false);
-      setStatus("Saved. That post will not be analysed again.");
+      step.analyse = clipboard ? !!pastedImage : false;
+      step.save = false;
+      setStatus(clipboard ? "Saved." : "Saved. That post will not be analysed again.");
     } catch (err) {
       setError("The result was not saved.");
-      setSaveEnabled(true);
+      step.save = true;
+    } finally {
+      busy = "";
+      applySteps();
     }
   }
 
   function wire() {
     $("analyst-tab-url").addEventListener("click", function () { showTab("url"); });
     $("analyst-tab-channel").addEventListener("click", function () { showTab("channel"); });
+    $("analyst-tab-clipboard").addEventListener("click", function () { showTab("clipboard"); });
     $("analyst-tab-existing").addEventListener("click", function () { showTab("existing"); });
+    $("analyst-url-input").addEventListener("input", resetStep);
+    $("analyst-channel-input").addEventListener("input", resetStep);
+    $("analyst-source").addEventListener("change", resetStep);
     $("analyst-extract").addEventListener("click", extract);
+    $("analyst-paste").addEventListener("click", pasteClipboard);
     $("analyst-run").addEventListener("click", runAnalyse);
     $("analyst-save").addEventListener("click", saveResult);
     wired = true;
+    applySteps();
   }
 
   function open(ctx) {

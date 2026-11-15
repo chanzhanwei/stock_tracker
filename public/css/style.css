@@ -482,6 +482,15 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 .analyst-panel input, .analyst-panel select, #analyst-model { width: 100%; }
 .analyst-transcript { margin: 0.15rem 0 0.7rem; }
 .analyst-transcript a { color: var(--info); word-break: break-all; }
+.analyst-paste-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 16rem;
+  margin: 0.8rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+}
 .analyst-work { margin-top: 3rem; }
 .analyst-model { margin: 0 0 3rem; }
 .analyst-columns {
