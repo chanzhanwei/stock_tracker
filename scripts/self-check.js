@@ -292,6 +292,7 @@ async function main() {
   assert(!fs.existsSync(path.join(root, "public/js/ledger.js")), "ledger screen removed");
   assert(!fs.existsSync(path.join(root, "public/js/ledger-feed.js")), "fixture feed removed");
   const page = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
+  const analystCss = fs.readFileSync(path.join(root, "public/css/style.css"), "utf8");
   const analystClient = fs.readFileSync(path.join(root, "public/js/analyst.js"), "utf8");
   const fetchSrc = fs.readFileSync(path.join(root, "lib/analyst-fetch.js"), "utf8");
   assert(page.includes(">Analyze<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && !page.includes(">Analyst<") && !page.includes("ledger.js"), "stock, analyze, and institution switch");
@@ -305,6 +306,9 @@ async function main() {
   assert(page.includes("https://cdn-icons-gif.flaticon.com/17771/17771113.gif"), "thinking gif");
   assert(page.includes("Extract transcript from:"), "youtube transcript line");
   assert(page.includes('class="analyst-work"'), "gap before the text row");
+  assert(analystCss.includes(".analyst-work { margin-top: 3rem; }") && analystCss.includes(".analyst-model { margin: 0 0 3rem; }"), "three rem gaps around model");
+  assert(/\.analyst-tabs button\[aria-selected="true"\][\s\S]*border-bottom-color: var\(--copper\)/.test(analystCss), "active tab is underlined");
+  assert(!/total " \+ money/.test(analystClient) && analystClient.includes('Input " + rate') && analystClient.includes('Output " + rate') && analystClient.includes('Total " + rate'), "model label is the per-million rate");
 
   const models = require("../lib/analyst-models");
   const parse = require("../lib/analyst-parse");
@@ -343,6 +347,14 @@ async function main() {
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
   assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("URL: https://example.com/post"), "prompt window");
+  const pricedRates = require("../lib/analyst-prices");
+  const flash = pricedRates.perMillion("0.00000015", "0.0000006");
+  assert(flash && flash.input === 0.15 && flash.output === 0.6 && flash.total === 0.75, "price per million tokens");
+  const catalog = pricedRates.ratesFromCatalog([
+    { id: "deepseek/deepseek-v4.1-flash-1017", pricing: { prompt: "0.00000015", completion: "0.0000006" } },
+    { id: "missing/price" },
+  ], ["deepseek/deepseek-v4.1-flash-1017", "missing/price"]);
+  assert(catalog["deepseek/deepseek-v4.1-flash-1017"].total === 0.75 && !catalog["missing/price"], "catalog keeps only published prices");
   assert(fetched.KINDS.indexOf("substack") !== -1, "substack is a source kind");
   assert(fetched.canonicalPostUrl("https://youtu.be/abcdefghijk?t=3") === "https://www.youtube.com/watch?v=abcdefghijk", "youtube url");
   assert(fetched.canonicalPostUrl("https://twitter.com/Ada/status/20?s=1") === "https://x.com/ada/status/20", "x url");

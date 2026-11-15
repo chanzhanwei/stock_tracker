@@ -4,7 +4,7 @@
   var api = null;
   var admin = false;
   var wired = false;
-  var costs = {};
+  var prices = {};
   var models = [];
   var defaultModel = "";
   var current = null;
@@ -13,15 +13,18 @@
 
   function $(id) { return document.getElementById(id); }
 
-  function money(value) {
-    if (value == null || value === "" || !isFinite(Number(value))) return "";
-    return "$" + Number(value).toFixed(6);
+  function rate(value) {
+    if (value == null || !isFinite(Number(value))) return "";
+    var n = Number(value);
+    if (n === 0) return "$0";
+    if (n >= 0.01) return "$" + n.toFixed(2);
+    return "$" + n.toFixed(4).replace(/0+$/, "");
   }
 
   function modelLabel(id) {
-    var row = costs[id];
+    var row = prices[id];
     if (!row) return id;
-    return id + "    total " + money(row.totalCost) + "    in " + money(row.inputCost) + "    out " + money(row.outputCost);
+    return id + "    Input " + rate(row.input) + "    Output " + rate(row.output) + "    Total " + rate(row.total);
   }
 
   function setError(message) {
@@ -217,6 +220,7 @@
     try { body = await res.json(); } catch (err) { body = {}; }
     if (!res.ok) return { error: explain(body) };
     models = body.models || [];
+    prices = body.prices || {};
     defaultModel = body.defaultModel || (models[0] || "");
     return body;
   }
@@ -321,11 +325,6 @@
         totalCost: result.body.totalCost,
         inputCost: result.body.inputCost,
         outputCost: result.body.outputCost,
-      };
-      costs[lastRun.model] = {
-        totalCost: lastRun.totalCost,
-        inputCost: lastRun.inputCost,
-        outputCost: lastRun.outputCost,
       };
       renderModels();
       $("analyst-model").value = lastRun.model;
