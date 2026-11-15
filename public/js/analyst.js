@@ -9,6 +9,7 @@
   var defaultModel = "";
   var current = null;
   var lastRun = null;
+  var tab = "url";
 
   function $(id) { return document.getElementById(id); }
 
@@ -55,13 +56,6 @@
     return select ? select.value : "";
   }
 
-  function selectedKind() {
-    var select = $("analyst-source");
-    if (!select || select.selectedIndex < 0) return "";
-    var option = select.options[select.selectedIndex];
-    return option ? (option.dataset.kind || "") : "";
-  }
-
   function kindLabel(kind) {
     if (kind === "youtube") return "YouTube channel";
     if (kind === "x") return "X user";
@@ -70,13 +64,47 @@
     return kind || "";
   }
 
+  function setSaveEnabled(enabled) {
+    var button = $("analyst-save");
+    if (button) button.disabled = !enabled;
+  }
+
+  function showTranscript(item) {
+    var line = $("analyst-transcript");
+    var link = $("analyst-transcript-url");
+    var youtube = item && item.kind === "youtube" && item.url;
+    if (!line || !link) return;
+    line.hidden = !youtube;
+    if (!youtube) {
+      link.removeAttribute("href");
+      link.textContent = "";
+      return;
+    }
+    link.href = item.url;
+    link.textContent = item.url;
+  }
+
   function syncPlaceholder() {
     var box = $("analyst-text");
     if (!box) return;
-    var kind = (current && current.kind) || selectedKind();
-    box.placeholder = kind === "youtube"
+    box.placeholder = current && current.kind === "youtube"
       ? "Paste the YouTube transcript. Captions are not downloaded."
       : "";
+  }
+
+  function showTab(next) {
+    tab = next;
+    [
+      ["url", "analyst-tab-url", "analyst-panel-url"],
+      ["channel", "analyst-tab-channel", "analyst-panel-channel"],
+      ["existing", "analyst-tab-existing", "analyst-panel-existing"],
+    ].forEach(function (row) {
+      var button = $(row[1]);
+      var panel = $(row[2]);
+      var active = row[0] === next;
+      if (button) button.setAttribute("aria-selected", active ? "true" : "false");
+      if (panel) panel.hidden = !active;
+    });
   }
 
   function renderModels() {
@@ -111,7 +139,6 @@
       if (source.id === selected) option.selected = true;
       select.appendChild(option);
     });
-    syncPlaceholder();
   }
 
   function renderInstitution(results) {
@@ -152,16 +179,11 @@
   }
 
   function showItem(item) {
-    var link = $("analyst-url");
-    var title = $("analyst-title");
     if (!item) {
       current = null;
-      if (link) {
-        link.hidden = true;
-        link.removeAttribute("href");
-        link.textContent = "";
-      }
-      if (title) title.textContent = "";
+      lastRun = null;
+      setSaveEnabled(false);
+      showTranscript(null);
       syncPlaceholder();
       return;
     }
@@ -171,17 +193,13 @@
       $("analyst-text").value = item.text || "";
       $("analyst-result").value = "";
       lastRun = null;
+      setSaveEnabled(false);
     }
-    if (title) title.textContent = item.title || "";
     if (item.sourceId) {
       var select = $("analyst-source");
       if (select) select.value = item.sourceId;
     }
-    if (link) {
-      link.hidden = !item.url;
-      link.href = item.url || "";
-      link.textContent = item.url || "";
-    }
+    showTranscript(item);
     syncPlaceholder();
   }
 
@@ -217,53 +235,54 @@
     else setError("");
   }
 
-  async function addSource(event) {
-    event.preventDefault();
-    setError("");
-    setStatus("");
-    var button = $("analyst-add-button");
-    button.disabled = true;
-    try {
-      var result = await post({
-        action: "add-source",
-        name: $("analyst-name").value,
-        kind: $("analyst-kind").value,
-      });
-      if (!result.ok) {
-        setError(explain(result.body));
-        return;
-      }
-      $("analyst-name").value = "";
-      renderSources(result.body.sources || [], result.body.source && result.body.source.id);
-      setStatus("Source saved.");
-    } catch (err) {
-      setError("The source was not saved.");
-    } finally {
-      button.disabled = false;
-    }
-  }
-
-  async function fetchNext() {
-    setError("");
-    setStatus("");
-    if (!selectedSourceId()) {
-      setError("Choose a saved source, or paste a URL.");
+  function applyExtract(result) {
+    if (!result.ok) {
+      setError(explain(result.body));
       return;
     }
-    var button = $("analyst-fetch");
+    if (result.body.sources) {
+      renderSources(result.body.sources, result.body.item && result.body.item.sourceId);
+    }
+    if (result.body.item) {
+      showItem(result.body.item);
+      if (result.body.item.pasteTranscript) setStatus("Paste the YouTube transcript. Captions are not downloaded.");
+      else setStatus("");
+      return;
+    }
+    setStatus(result.body.message || "");
+  }
+
+  async function extract() {
+    setError("");
+    setStatus("");
+    var button = $("analyst-extract");
     button.disabled = true;
     try {
-      var result = await post({ action: "fetch", sourceId: selectedSourceId() });
-      if (!result.ok) {
-        setError(explain(result.body));
-        return;
+      var result;
+      if (tab === "existing") {
+        if (!selectedSourceId()) {
+          setError("Choose a saved source.");
+          return;
+        }
+        result = await post({ action: "fetch", sourceId: selectedSourceId() });
+      } else if (tab === "channel") {
+        var channel = $("analyst-channel-input").value.trim();
+        if (!channel) {
+          setError("Paste a channel URL.");
+          return;
+        }
+        result = await post({ action: "open-url", url: channel, mode: "channel" });
+      } else {
+        var url = $("analyst-url-input").value.trim();
+        if (!url) {
+          setError("Paste a URL.");
+          return;
+        }
+        result = await post({ action: "open-url", url: url, mode: "page" });
       }
-      showItem(result.body.item || null);
-      if (result.body.message) setStatus(result.body.message);
-      else if (result.body.item && result.body.item.pasteTranscript) setStatus("Paste the transcript into the text box.");
-      else setStatus("");
+      applyExtract(result);
     } catch (err) {
-      setError("The next item could not be fetched.");
+      setError("The text could not be extracted.");
     } finally {
       button.disabled = false;
     }
@@ -278,13 +297,21 @@
       return;
     }
     var button = $("analyst-run");
+    var thinking = $("analyst-thinking");
     button.disabled = true;
+    if (thinking) thinking.hidden = false;
     setStatus("Analysing.");
     try {
       var model = $("analyst-model").value;
-      var result = await post({ action: "analyse", model: model, text: $("analyst-text").value });
+      var result = await post({
+        action: "analyse",
+        model: model,
+        text: $("analyst-text").value,
+        url: current && current.url ? current.url : "",
+      });
       if (!result.ok) {
         setStatus("");
+        setSaveEnabled(false);
         setError(explain(result.body));
         return;
       }
@@ -302,12 +329,15 @@
       };
       renderModels();
       $("analyst-model").value = lastRun.model;
+      setSaveEnabled(true);
       setStatus("You can edit the result before saving.");
     } catch (err) {
       setStatus("");
+      setSaveEnabled(false);
       setError("OpenRouter could not be reached.");
     } finally {
       button.disabled = false;
+      if (thinking) thinking.hidden = true;
     }
   }
 
@@ -315,11 +345,13 @@
     setError("");
     setStatus("");
     if (!current || !current.id) {
-      setError("Fetch an item before saving.");
+      setError("Extract an item before saving.");
+      setSaveEnabled(false);
       return;
     }
     if (!lastRun) {
       setError("Analyse the text before saving.");
+      setSaveEnabled(false);
       return;
     }
     var button = $("analyst-save");
@@ -336,61 +368,27 @@
       });
       if (!result.ok) {
         setError(explain(result.body));
+        setSaveEnabled(true);
         return;
       }
       renderInstitution(result.body.results || []);
       current = null;
       lastRun = null;
+      setSaveEnabled(false);
       setStatus("Saved. That post will not be analysed again.");
     } catch (err) {
       setError("The result was not saved.");
-    } finally {
-      button.disabled = false;
-    }
-  }
-
-  async function openUrl(event) {
-    event.preventDefault();
-    setError("");
-    setStatus("");
-    var url = $("analyst-url-input").value.trim();
-    if (!url) {
-      setError("Paste a URL, or choose a saved source.");
-      return;
-    }
-    var button = $("analyst-open-url");
-    button.disabled = true;
-    try {
-      var result = await post({ action: "open-url", url: url });
-      if (!result.ok) {
-        setError(explain(result.body));
-        return;
-      }
-      if (result.body.sources) {
-        renderSources(result.body.sources, result.body.item && result.body.item.sourceId);
-      }
-      if (result.body.item) {
-        showItem(result.body.item);
-        $("analyst-url-input").value = "";
-        if (result.body.item.pasteTranscript) setStatus("Paste the transcript into the text box.");
-        else setStatus("");
-      } else if (result.body.message) {
-        setStatus(result.body.message);
-      }
-    } catch (err) {
-      setError("That URL could not be opened.");
-    } finally {
-      button.disabled = false;
+      setSaveEnabled(true);
     }
   }
 
   function wire() {
-    $("analyst-add").addEventListener("submit", addSource);
-    $("analyst-url-form").addEventListener("submit", openUrl);
-    $("analyst-fetch").addEventListener("click", fetchNext);
+    $("analyst-tab-url").addEventListener("click", function () { showTab("url"); });
+    $("analyst-tab-channel").addEventListener("click", function () { showTab("channel"); });
+    $("analyst-tab-existing").addEventListener("click", function () { showTab("existing"); });
+    $("analyst-extract").addEventListener("click", extract);
     $("analyst-run").addEventListener("click", runAnalyse);
     $("analyst-save").addEventListener("click", saveResult);
-    $("analyst-source").addEventListener("change", syncPlaceholder);
     wired = true;
   }
 

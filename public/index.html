@@ -181,49 +181,59 @@
       <p id="analyst-error" class="error" role="alert"></p>
       <p id="analyst-status" class="muted" role="status"></p>
       <div id="analyst-desk" class="analyst-desk">
-        <label class="field">
-          <span>Source</span>
-          <select id="analyst-source"></select>
-        </label>
-        <form id="analyst-url-form" class="row">
-          <input id="analyst-url-input" type="text" maxlength="2000" placeholder="Or paste a URL" autocomplete="off" spellcheck="false" aria-label="Source URL">
-          <button id="analyst-open-url" type="submit">Open URL</button>
-        </form>
-        <form id="analyst-add" class="row">
-          <input id="analyst-name" type="text" maxlength="300" placeholder="Name, @handle, or URL" autocomplete="off" required aria-label="Source name">
-          <label class="select-wrap">
-            <span class="sr">Kind</span>
-            <select id="analyst-kind" aria-label="Source kind">
-              <option value="youtube">YouTube channel</option>
-              <option value="x">X user</option>
-              <option value="substack">Substack</option>
-              <option value="website">Website</option>
-            </select>
+        <div class="analyst-tabs" role="tablist" aria-label="Source">
+          <button id="analyst-tab-url" type="button" role="tab" aria-selected="true" aria-controls="analyst-panel-url">New URL</button>
+          <button id="analyst-tab-channel" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-channel">New Channel</button>
+          <button id="analyst-tab-existing" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-existing">Existing Source</button>
+        </div>
+        <div id="analyst-panel-url" class="analyst-panel" role="tabpanel">
+          <label class="field">
+            <span>URL</span>
+            <input id="analyst-url-input" type="text" maxlength="2000" placeholder="Paste a URL" autocomplete="off" spellcheck="false">
           </label>
-          <button id="analyst-add-button" type="submit">Add source</button>
-        </form>
-        <div class="row">
-          <button id="analyst-fetch" type="button">Fetch next item</button>
         </div>
-        <label class="field">
-          <span>Text</span>
-          <p id="analyst-title" class="muted"></p>
-          <a id="analyst-url" class="analyst-url" hidden target="_blank" rel="noopener"></a>
-          <textarea id="analyst-text" rows="10" spellcheck="true"></textarea>
-        </label>
-        <label class="field">
-          <span>Model</span>
-          <select id="analyst-model"></select>
-        </label>
-        <div class="row">
-          <button id="analyst-run" type="button">Analyse</button>
+        <div id="analyst-panel-channel" class="analyst-panel" role="tabpanel" hidden>
+          <label class="field">
+            <span>Channel URL</span>
+            <input id="analyst-channel-input" type="text" maxlength="2000" placeholder="Paste a channel, profile, or site URL" autocomplete="off" spellcheck="false">
+          </label>
         </div>
-        <label class="field">
-          <span>Result</span>
-          <textarea id="analyst-result" rows="10" spellcheck="true" placeholder="The model result appears here. It needs Analyst, Short-term stock, Long-term stock, Short-term industry, Long-term industry, and Short-term avoid lines."></textarea>
-        </label>
-        <div class="row">
-          <button id="analyst-save" type="button">Save</button>
+        <div id="analyst-panel-existing" class="analyst-panel" role="tabpanel" hidden>
+          <label class="field">
+            <span>Source</span>
+            <select id="analyst-source"></select>
+          </label>
+        </div>
+        <p id="analyst-transcript" class="analyst-transcript" hidden>Extract transcript from: <a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
+        <div class="row analyst-extract">
+          <button id="analyst-extract" type="button">Extract</button>
+        </div>
+        <div class="analyst-work">
+          <label class="field analyst-model">
+            <span>Model</span>
+            <select id="analyst-model"></select>
+          </label>
+          <div class="analyst-columns">
+            <div class="analyst-col">
+              <label class="field">
+                <span>Extracted Text</span>
+                <textarea id="analyst-text" rows="12" spellcheck="true"></textarea>
+              </label>
+              <div class="row analyst-action">
+                <button id="analyst-run" type="button">Analyse</button>
+                <img id="analyst-thinking" alt="" hidden width="28" height="28" src="https://cdn-icons-gif.flaticon.com/17771/17771113.gif">
+              </div>
+            </div>
+            <div class="analyst-col">
+              <label class="field">
+                <span>Analysed Result</span>
+                <textarea id="analyst-result" rows="12" spellcheck="true" placeholder="The model result appears here. It needs Date, URL, Analyst, Short-term stock, Long-term stock, Short-term industry, Long-term industry, and Short-term avoid lines."></textarea>
+              </label>
+              <div class="row analyst-action">
+                <button id="analyst-save" type="button" disabled>Save</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

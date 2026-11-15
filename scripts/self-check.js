@@ -299,6 +299,12 @@ async function main() {
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
   assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
   assert(analystClient.includes("Paste the YouTube transcript"), "youtube transcript is pasted");
+  assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Existing Source<"), "source tabs");
+  assert(page.includes(">Extracted Text<") && page.includes(">Analysed Result<"), "text and result sit apart");
+  assert(/id="analyst-save"[^>]*disabled/.test(page), "save starts disabled");
+  assert(page.includes("https://cdn-icons-gif.flaticon.com/17771/17771113.gif"), "thinking gif");
+  assert(page.includes("Extract transcript from:"), "youtube transcript line");
+  assert(page.includes('class="analyst-work"'), "gap before the text row");
 
   const models = require("../lib/analyst-models");
   const parse = require("../lib/analyst-parse");
@@ -318,6 +324,25 @@ async function main() {
   const missing = parse.parsePicks("no labels");
   assert(missing.analystName === "" && missing.shortTermStock === "" && missing.shortTermAvoid === "", "missing picks");
   assert(parse.parsePicks("Short-term: NVDA\nLong-term: Banks").shortTermStock === "", "old pick labels are not enough");
+  const dated = parse.parsePicks("Date: 2026-11-01\nURL: https://example.com/post\nAnalyst: Ada");
+  assert(dated.date === "2026-11-01" && dated.url === "https://example.com/post" && dated.analystName === "Ada", "date and url lines");
+  assert(parse.resultDate("Date: 2026-11-01") === "2026-11-01", "result date");
+  assert(parse.resultDate("Date: yesterday") === "", "result date must be a calendar day");
+  const dates = require("../lib/analyst-dates");
+  const window = dates.tradeWindow(new Date("2026-11-15T03:00:00Z"));
+  assert(window.today === "2026-11-15" && window.cutoffDay === "2026-09-15", "two calendar months");
+  assert(dates.isWithinWindow(null, window.cutoffIso) && !dates.isWithinWindow("2026-07-01T00:00:00Z", window.cutoffIso), "old posts are outside the window");
+  const replaced = dates.channelChoice([
+    { url: "https://example.com/old", publishedAt: "2026-11-01T00:00:00Z", processed: false },
+    { url: "https://example.com/new", publishedAt: "2026-11-10T00:00:00Z", processed: true },
+  ], window.cutoffIso);
+  assert(!replaced.item && /already analysed/i.test(replaced.message), "newest analysed post is not replaced");
+  const staleChoice = dates.channelChoice([
+    { url: "https://example.com/stale", publishedAt: "2026-01-01T00:00:00Z", processed: false },
+  ], window.cutoffIso);
+  assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
+  const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
+  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("URL: https://example.com/post"), "prompt window");
   assert(fetched.KINDS.indexOf("substack") !== -1, "substack is a source kind");
   assert(fetched.canonicalPostUrl("https://youtu.be/abcdefghijk?t=3") === "https://www.youtube.com/watch?v=abcdefghijk", "youtube url");
   assert(fetched.canonicalPostUrl("https://twitter.com/Ada/status/20?s=1") === "https://x.com/ada/status/20", "x url");
@@ -430,6 +455,8 @@ async function main() {
           action: "save",
           itemId: firstItem.body.item.id,
           resultText: [
+            "Date: 2026-11-01",
+            "URL: https://example.com/newer",
             "Analyst: Ada",
             "Short-term stock: NVDA",
             "Long-term stock: AAPL",
@@ -444,7 +471,7 @@ async function main() {
           outputCost: 0.0001,
         },
       }, savedRow);
-      assert(savedRow.statusCode === 200 && savedRow.body.saved.postUrl === "https://example.com/newer" && savedRow.body.saved.source === feedUrl && savedRow.body.saved.analystName === "Ada" && savedRow.body.saved.shortTermStock === "NVDA" && savedRow.body.saved.longTermStock === "AAPL" && savedRow.body.saved.shortTermIndustry === "Semiconductors" && savedRow.body.saved.longTermIndustry === "Banks" && savedRow.body.saved.shortTermAvoid === "TSLA" && savedRow.body.saved.modelId === models.DEFAULT_MODEL && savedRow.body.saved.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
+      assert(savedRow.statusCode === 200 && savedRow.body.saved.postUrl === "https://example.com/newer" && savedRow.body.saved.source === feedUrl && savedRow.body.saved.date === "2026-11-01" && savedRow.body.saved.analystName === "Ada" && savedRow.body.saved.shortTermStock === "NVDA" && savedRow.body.saved.longTermStock === "AAPL" && savedRow.body.saved.shortTermIndustry === "Semiconductors" && savedRow.body.saved.longTermIndustry === "Banks" && savedRow.body.saved.shortTermAvoid === "TSLA" && savedRow.body.saved.modelId === models.DEFAULT_MODEL && savedRow.body.saved.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
       assert(Math.abs(savedRow.body.saved.totalCost - 0.00015) < 1e-12 && Math.abs(savedRow.body.saved.inputCost - 0.00005) < 1e-12 && Math.abs(savedRow.body.saved.outputCost - 0.0001) < 1e-12, "save stores the three costs");
       const secondItem = mockRes();
       await analyst({
