@@ -176,7 +176,8 @@ async function handle(req, res) {
   if (action === "analyse") {
     const postUrl = typeof body.url === "string" ? body.url : "";
     const image = typeof body.image === "string" ? body.image : "";
-    send(res, 200, await analyse(body.model, body.text, postUrl, image));
+    const reasoning = body.reasoning === true;
+    send(res, 200, await analyse(body.model, body.text, postUrl, image, reasoning));
     return;
   }
   if (action === "save") {
