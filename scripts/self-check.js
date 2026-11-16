@@ -305,7 +305,11 @@ async function main() {
   assert(/id="analyst-extract"[^>]*disabled/.test(page) && /id="analyst-run"[^>]*disabled/.test(page), "extract and analyse start disabled");
   assert(page.includes(">Extracted Text<") && page.includes(">Analysed Result<"), "text and result sit apart");
   assert(/id="analyst-save"[^>]*disabled/.test(page), "save starts disabled");
-  assert(page.includes("https://cdn-icons-gif.flaticon.com/17771/17771113.gif"), "thinking gif");
+  assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
+  assert(analystClient.includes("function placeThinking") && analystClient.includes('busy === "paste"') && analystClient.includes('busy === "save"'), "thinking mark follows the running button");
+  assert(/function showTab\(next\) \{[\s\S]*?showTranscript\(null\)/.test(analystClient), "tab change hides the transcript line");
+  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 0.6rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
+  assert(page.includes(">Notes<") && analystClient.includes("row.note"), "institution shows the note");
   assert(page.includes("Extract transcript from:"), "youtube transcript line");
   assert(page.includes('class="analyst-work"'), "gap before the text row");
   assert(analystCss.includes(".analyst-work { margin-top: 3rem; }") && analystCss.includes(".analyst-model { margin: 0 0 3rem; }"), "three rem gaps around model");
@@ -333,7 +337,9 @@ async function main() {
   assert(missing.analystName === "" && missing.shortTermStock === "" && missing.shortTermAvoid === "", "missing picks");
   assert(parse.parsePicks("Short-term: NVDA\nLong-term: Banks").shortTermStock === "", "old pick labels are not enough");
   const dated = parse.parsePicks("Date: 2026-11-01\nURL: https://example.com/post\nAnalyst: Ada");
-  assert(dated.date === "2026-11-01" && dated.url === "https://example.com/post" && dated.analystName === "Ada", "date and url lines");
+  assert(dated.date === "2026-11-01" && dated.url === "https://example.com/post" && dated.analystName === "Ada" && dated.note === "", "date and url lines");
+  assert(parse.parsePicks("Analyst: Ada (TheStreet)").analystName === "Ada (TheStreet)", "analyst keeps the organisation");
+  assert(parse.parsePicks("Date: 2026-11-01\nAnalyst: Ada\nA short note\nSecond line").note === "A short note\nSecond line", "note is the trailing lines");
   assert(parse.resultDate("Date: 2026-11-01") === "2026-11-01", "result date");
   assert(parse.resultDate("Date: yesterday") === "", "result date must be a calendar day");
   const dates = require("../lib/analyst-dates");
@@ -350,9 +356,56 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("Website: <post platform>") && prompt.includes("Short-term stock buy:") && prompt.includes("Long-term industry avoid:") && prompt.includes("Short-term stock avoid:") && prompt.includes("URL: https://example.com/post") && !prompt.includes("This is not financial advice."), "prompt window");
+  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("Website: <post platform>") && prompt.includes("Short-term stock buy:") && prompt.includes("Long-term industry avoid:") && prompt.includes("Short-term stock avoid:") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name> (<the commentator's organisation>)") && !prompt.includes("This is not financial advice."), "prompt window");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
   assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
+  const shown = priced.debugPrompt("https://example.com/post", imageMessage);
+  assert(shown.includes("Image: image/png, 3 bytes") && shown.indexOf("base64") === -1 && shown.includes("Read the attached image."), "debug prompt describes the image");
+  assert(priced.replyText({ content: [{ type: "text", text: "Date: 2026-11-01" }, { text: "\nAnalyst: Ada" }] }) === "Date: 2026-11-01\nAnalyst: Ada", "content parts join");
+  const openrouterSrc = fs.readFileSync(path.join(root, "lib/analyst-openrouter.js"), "utf8");
+  assert(openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("withImage ? 60000 : 25000"), "image calls skip reasoning and wait 60 seconds");
+  const realFetch = global.fetch;
+  const savedOpenRouterKey = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-key-not-sent";
+  let sentImage = null;
+  global.fetch = async function (_url, options) {
+    sentImage = JSON.parse(options.body);
+    return {
+      ok: true,
+      text: async () => JSON.stringify({
+        choices: [{ message: { content: [{ type: "text", text: "Date: 2026-11-01" }], reasoning: "hidden work" } }],
+        leak: "sk-or-abcdefghijklmnop",
+      }),
+    };
+  };
+  const imageRun = await priced.analyse(models.DEFAULT_MODEL, "", "", "data:image/png;base64,aaaa");
+  assert(sentImage.reasoning.enabled === false && imageRun.text === "Date: 2026-11-01" && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply joins content parts");
+  global.fetch = async function () {
+    return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "", reasoning: "only reasoning" } }] }) };
+  };
+  let emptyImage = "";
+  try {
+    await priced.analyse(models.DEFAULT_MODEL, "", "", "data:image/png;base64,aaaa");
+  } catch (err) {
+    emptyImage = err.message;
+    assert(err.debug && err.debug.response.includes("only reasoning"), "empty image keeps the response");
+  }
+  assert(emptyImage === models.DEFAULT_MODEL + " returned no labelled result.", "empty image names the model");
+  let sentText = null;
+  global.fetch = async function (_url, options) {
+    sentText = JSON.parse(options.body);
+    return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "" } }] }) };
+  };
+  let emptyText = "";
+  try {
+    await priced.analyse(models.DEFAULT_MODEL, "hello", "", "");
+  } catch (err) {
+    emptyText = err.message;
+  }
+  assert(!sentText.reasoning && sentText.messages[1].content === "hello" && emptyText === "OpenRouter returned an empty result.", "text analyse stays on the empty result message");
+  global.fetch = realFetch;
+  if (savedOpenRouterKey == null) delete process.env.OPENROUTER_API_KEY;
+  else process.env.OPENROUTER_API_KEY = savedOpenRouterKey;
   let badImage = "";
   try { priced.userContent("", "not-an-image"); } catch (err) { badImage = err.code; }
   assert(badImage === "bad_image", "image must be a data url");
@@ -409,7 +462,7 @@ async function main() {
     headers: { host: "localhost" },
     body: { action: "analyse", model: models.DEFAULT_MODEL, text: "A transcript about chips." },
   }, missingKey);
-  assert(missingKey.statusCode === 503 && missingKey.body.message === "Set OPENROUTER_API_KEY on the server.", "missing openrouter key is plain");
+      assert(missingKey.statusCode === 503 && missingKey.body.message === "Set OPENROUTER_API_KEY on the server." && missingKey.body.debug && missingKey.body.debug.prompt.indexOf("Analyst:") !== -1 && missingKey.body.debug.response === "", "missing openrouter key is plain");
   assert(JSON.stringify(missingKey.body).indexOf("Bearer") === -1 && JSON.stringify(missingKey.body).indexOf("sk-") === -1, "analyse does not echo a key");
 
   const addedReader = mockRes();
@@ -497,7 +550,7 @@ async function main() {
         },
       }, savedRow);
       const savedView = savedRow.body.results[0];
-      assert(savedRow.statusCode === 200 && savedView.postUrl === "https://example.com/newer" && savedView.source === "127.0.0.1" && savedView.website === "Example" && savedView.date === "2026-11-01" && savedView.analystName === "Ada" && savedView.shortTermStock === "NVDA" && savedView.longTermStock === "AAPL" && savedView.shortTermIndustry === "Semiconductors" && savedView.longTermIndustry === "Banks" && savedView.longTermIndustryAvoid === "Coal" && savedView.shortTermAvoid === "TSLA" && savedView.modelId === models.DEFAULT_MODEL && savedView.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
+      assert(savedRow.statusCode === 200 && savedView.postUrl === "https://example.com/newer" && savedView.source === "127.0.0.1" && savedView.website === "Example" && savedView.date === "2026-11-01" && savedView.analystName === "Ada" && savedView.shortTermStock === "NVDA" && savedView.longTermStock === "AAPL" && savedView.shortTermIndustry === "Semiconductors" && savedView.longTermIndustry === "Banks" && savedView.longTermIndustryAvoid === "Coal" && savedView.shortTermAvoid === "TSLA" && savedView.note === "Edited note." && savedView.modelId === models.DEFAULT_MODEL && savedView.resultText.indexOf("Edited note.") !== -1, "save stores the edited result and url");
       assert(Math.abs(savedView.totalCost - 0.00015) < 1e-12 && Math.abs(savedView.inputCost - 0.00005) < 1e-12 && Math.abs(savedView.outputCost - 0.0001) < 1e-12, "save stores the three costs");
       const secondItem = mockRes();
       await analyst({
@@ -547,7 +600,7 @@ async function main() {
         },
       }, manualSaved);
       const manualView = manualSaved.body.results[0];
-      assert(manualSaved.statusCode === 200 && manualView.source === "Manual Desk" && manualView.website === "Manual Desk" && manualView.analystName === "Bea" && manualView.shortTermStock === "MSFT", "manual url result is saved");
+      assert(manualSaved.statusCode === 200 && manualView.source === "Manual Desk" && manualView.website === "Manual Desk" && manualView.analystName === "Bea" && manualView.shortTermStock === "MSFT" && manualView.note === "", "manual url result is saved");
       const clip = mockRes();
       await analyst({
         method: "POST",

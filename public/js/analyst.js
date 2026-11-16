@@ -100,6 +100,23 @@
     }
     if (run) run.disabled = busy === "analyse" || !step.analyse;
     if (save) save.disabled = busy === "save" || !step.save;
+    placeThinking();
+  }
+
+  function placeThinking() {
+    var mark = $("analyst-thinking");
+    if (!mark) return;
+    var host = busy === "extract" ? $("analyst-extract")
+      : busy === "paste" ? $("analyst-paste")
+      : busy === "analyse" ? $("analyst-run")
+      : busy === "save" ? $("analyst-save")
+      : null;
+    if (!host || !host.parentNode) {
+      mark.hidden = true;
+      return;
+    }
+    host.insertAdjacentElement("afterend", mark);
+    mark.hidden = false;
   }
 
   function showImage(url) {
@@ -174,6 +191,7 @@
       if (button) button.setAttribute("aria-selected", active ? "true" : "false");
       if (panel) panel.hidden = !active;
     });
+    showTranscript(null);
     if (next !== "clipboard") showImage("");
     resetStep();
   }
@@ -247,6 +265,10 @@
       cell(row.longTermIndustry);
       cell(row.longTermIndustryAvoid);
       cell(row.shortTermAvoid);
+      var noteCell = document.createElement("td");
+      noteCell.className = "analyst-note-cell";
+      noteCell.textContent = row.note || "";
+      tr.appendChild(noteCell);
       body.appendChild(tr);
     });
   }
@@ -456,6 +478,13 @@
     }
   }
 
+  function showDebug(debug) {
+    var request = $("analyst-debug-request");
+    var response = $("analyst-debug-response");
+    if (request) request.value = debug && debug.prompt ? debug.prompt : "";
+    if (response) response.value = debug && debug.response ? debug.response : "";
+  }
+
   async function runAnalyse() {
     setError("");
     setStatus("");
@@ -465,10 +494,8 @@
       setError("The text box is empty.");
       return;
     }
-    var thinking = $("analyst-thinking");
     busy = "analyse";
     applySteps();
-    if (thinking) thinking.hidden = false;
     setStatus("Analysing.");
     try {
       var model = $("analyst-model").value;
@@ -479,6 +506,7 @@
         url: current && current.url ? current.url : "",
         image: image,
       });
+      showDebug(result.body && result.body.debug);
       if (!result.ok) {
         setStatus("");
         step.save = false;
@@ -497,13 +525,13 @@
       step.save = true;
       setStatus("You can edit the result before saving.");
     } catch (err) {
+      showDebug(null);
       setStatus("");
       step.save = false;
       setError("OpenRouter could not be reached.");
     } finally {
       busy = "";
       applySteps();
-      if (thinking) thinking.hidden = true;
     }
   }
 
