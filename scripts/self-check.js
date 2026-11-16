@@ -85,14 +85,18 @@ if (saved.CLERK_PUBLISHABLE_KEY == null) delete process.env.CLERK_PUBLISHABLE_KE
 else process.env.CLERK_PUBLISHABLE_KEY = saved.CLERK_PUBLISHABLE_KEY;
 
 const summary = signals.aggregate([1, 0, 0, 0, 0]);
-assert(summary.verdict === "HOLD" && summary.average === 0.2 && summary.confidence === 60, "hold boundary");
+assert(summary.verdict === "HOLD" && summary.average === 0.2 && summary.confidence === 80 && summary.holdCount === 4 && summary.buyCount === 1 && summary.slider === 0.5 && summary.detail === "4 holds and 1 buy across 5 active signals.", "hold boundary");
 const buy = signals.aggregate([1, 1, 0, 0, 0]);
-assert(buy.verdict === "BUY" && buy.confidence === 70, "buy boundary");
+assert(buy.verdict === "HOLD" && buy.confidence === 60 && buy.buyCount === 2 && buy.holdCount === 3 && buy.detail === "3 holds and 2 buys across 5 active signals.", "two buys stay hold");
+const buyWin = signals.aggregate([1, 1, 1, 0, 0]);
+assert(buyWin.verdict === "BUY" && buyWin.confidence === 60 && Math.abs(buyWin.slider - 0.8) < 0.001 && buyWin.detail === "3 buys and 2 holds across 5 active signals.", "three buys");
 const sellEdge = signals.aggregate([-1, 0, 0, 0, 0]);
-assert(sellEdge.verdict === "HOLD" && sellEdge.confidence === 40, "sell boundary");
+assert(sellEdge.verdict === "HOLD" && sellEdge.confidence === 80 && sellEdge.slider === 0.5, "one sell stays hold");
 const sell = signals.aggregate([-1, -1, 0, 0, 0]);
-assert(sell.verdict === "SELL" && sell.confidence === 30, "sell");
-assert(signals.aggregate([]).verdict === "HOLD" && signals.aggregate([]).confidence === 50, "empty mean");
+assert(sell.verdict === "HOLD" && sell.confidence === 60 && sell.sellCount === 2, "two sells stay hold");
+const sellWin = signals.aggregate([-1, -1, -1, 0, 0]);
+assert(sellWin.verdict === "SELL" && sellWin.confidence === 60 && Math.abs(sellWin.slider - 0.2) < 0.001, "three sells");
+assert(signals.aggregate([]).verdict === "HOLD" && signals.aggregate([]).confidence === 50 && signals.aggregate([]).slider === 0.5, "empty mean");
 assert(signals.voteRsi(29) === 1 && signals.voteRsi(70) === 0 && signals.voteRsi(71) === -1, "rsi votes");
 assert(signals.voteSmaStack(11, 10, 9) === 1 && signals.voteSmaStack(8, 9, 10) === -1 && signals.voteSmaStack(10, 10, 9) === 0, "sma stack");
 assert(signals.voteVolume(140, 100, 11, 10) === 1 && signals.voteVolume(140, 100, 9, 10) === -1 && signals.voteVolume(120, 100, 11, 10) === 0, "volume votes");
@@ -308,8 +312,14 @@ async function main() {
   assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
   assert(analystClient.includes("function placeThinking") && analystClient.includes('busy === "paste"') && analystClient.includes('busy === "save"'), "thinking mark follows the running button");
   assert(/function showTab\(next\) \{[\s\S]*?showTranscript\(null\)/.test(analystClient), "tab change hides the transcript line");
-  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 0.6rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
-  assert(page.includes(">Notes<") && analystClient.includes("row.note"), "institution shows the note");
+  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 1.5rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
+  assert(page.includes(">Notes<") && analystClient.includes("row.note") && !page.includes("<th>Website</th>") && !analystClient.includes("cell(row.website)"), "institution shows the note and hides website");
+  assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
+  assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
+  const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
+  const eventsSrc = fs.readFileSync(path.join(root, "api/events.js"), "utf8");
+  assert(eventsSrc.includes("filled.sort") && appClient.includes("function byEventDate"), "event cards run oldest to newest");
+  assert(page.includes('id="verdict-knob"') && analystCss.includes("linear-gradient(90deg, #e36a6a 0%, #e4b06a 50%, #3fbf8a 100%)") && appClient.includes('pair[0] + ": " + pair[1]'), "overall slider and vote counts");
   assert(page.includes("Extract transcript from:"), "youtube transcript line");
   assert(page.includes('class="analyst-work"'), "gap before the text row");
   assert(analystCss.includes(".analyst-work { margin-top: 3rem; }") && analystCss.includes(".analyst-model { margin: 0 0 3rem; }"), "three rem gaps around model");
@@ -321,6 +331,10 @@ async function main() {
   const fetched = require("../lib/analyst-fetch");
   const priced = require("../lib/analyst-openrouter");
   assert(models.DEFAULT_MODEL === "deepseek/deepseek-v4.1-flash-1017" && models.knownModel(models.DEFAULT_MODEL), "default model");
+  const kept = parse.replaceLabeledLine("Date: 2026-01-01\nWebsite: TheStreet\nNotes: old", "Notes", "edited");
+  assert(kept.includes("Notes: edited") && kept.includes("Website: TheStreet") && !kept.includes("Notes: old"), "edit rewrites the notes line");
+  const addedLine = parse.replaceLabeledLine("Date: 2026-01-01", "Notes", "");
+  assert(addedLine === "Date: 2026-01-01\nNotes: ", "edit adds a missing line");
   assert(models.MODELS.length === 25 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
   const picks = parse.parsePicks([
     "Website: TheStreet",
@@ -339,7 +353,8 @@ async function main() {
   const dated = parse.parsePicks("Date: 2026-11-01\nURL: https://example.com/post\nAnalyst: Ada");
   assert(dated.date === "2026-11-01" && dated.url === "https://example.com/post" && dated.analystName === "Ada" && dated.note === "", "date and url lines");
   assert(parse.parsePicks("Analyst: Ada (TheStreet)").analystName === "Ada (TheStreet)", "analyst keeps the organisation");
-  assert(parse.parsePicks("Date: 2026-11-01\nAnalyst: Ada\nA short note\nSecond line").note === "A short note\nSecond line", "note is the trailing lines");
+  assert(parse.parsePicks("Date: 2026-11-01\nNotes: A short note").note === "A short note", "note is the Notes line");
+  assert(parse.parsePicks("Date: 2026-11-01\nA short note").note === "", "unlabeled lines are not the note");
   assert(parse.resultDate("Date: 2026-11-01") === "2026-11-01", "result date");
   assert(parse.resultDate("Date: yesterday") === "", "result date must be a calendar day");
   const dates = require("../lib/analyst-dates");
@@ -356,11 +371,18 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("Website: <post platform>") && prompt.includes("Short-term stock buy:") && prompt.includes("Long-term industry avoid:") && prompt.includes("Short-term stock avoid:") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name> (<the commentator's organisation>)") && !prompt.includes("This is not financial advice."), "prompt window");
+  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
   assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
-  const shown = priced.debugPrompt("https://example.com/post", imageMessage);
-  assert(shown.includes("Image: image/png, 3 bytes") && shown.indexOf("base64") === -1 && shown.includes("Read the attached image."), "debug prompt describes the image");
+  const shown = priced.debugBody({
+    model: models.DEFAULT_MODEL,
+    messages: [
+      { role: "system", content: priced.instructions("https://example.com/post") },
+      { role: "user", content: imageMessage },
+    ],
+    reasoning: { enabled: false },
+  });
+  assert(shown.includes('"image_url"') && shown.includes("data:image/png;base64,[3 bytes]") && shown.indexOf("aaaa") === -1 && shown.includes("Read the attached image.") && shown.includes('"reasoning"'), "debug body is the request json");
   assert(priced.replyText({ content: [{ type: "text", text: "Date: 2026-11-01" }, { text: "\nAnalyst: Ada" }] }) === "Date: 2026-11-01\nAnalyst: Ada", "content parts join");
   const openrouterSrc = fs.readFileSync(path.join(root, "lib/analyst-openrouter.js"), "utf8");
   assert(openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("withImage ? 60000 : 25000"), "image calls skip reasoning and wait 60 seconds");
@@ -379,7 +401,7 @@ async function main() {
     };
   };
   const imageRun = await priced.analyse(models.DEFAULT_MODEL, "", "", "data:image/png;base64,aaaa");
-  assert(sentImage.reasoning.enabled === false && imageRun.text === "Date: 2026-11-01" && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply joins content parts");
+  assert(sentImage.reasoning.enabled === false && imageRun.text === "Date: 2026-11-01" && imageRun.debug.prompt.includes("data:image/png;base64,[3 bytes]") && imageRun.debug.prompt.indexOf("aaaa") === -1 && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply joins content parts");
   global.fetch = async function () {
     return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "", reasoning: "only reasoning" } }] }) };
   };
@@ -541,7 +563,7 @@ async function main() {
             "Long-term industry buy: Banks",
             "Long-term industry avoid: Coal",
             "Short-term stock avoid: TSLA",
-            "Edited note.",
+            "Notes: Edited note.",
           ].join("\n"),
           model: models.DEFAULT_MODEL,
           totalCost: 0.00015,

@@ -162,6 +162,10 @@
       <aside class="verdict-panel">
         <p class="eyebrow">Overall</p>
         <p id="verdict-word" class="verdict">—</p>
+        <div class="verdict-slider" aria-hidden="true">
+          <div class="verdict-track"><span id="verdict-knob" class="verdict-knob"></span></div>
+          <div class="verdict-scale"><span>Sell</span><span>Hold</span><span>Buy</span></div>
+        </div>
         <p id="verdict-confidence" class="confidence">—</p>
         <p id="verdict-detail" class="muted"></p>
         <h2>Categories</h2>
@@ -200,7 +204,7 @@
             <select id="analyst-source"></select>
           </label>
         </div>
-        <p id="analyst-transcript" class="analyst-transcript" hidden>Extract transcript from: <a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
+        <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
         <div class="row analyst-extract">
           <button id="analyst-extract" type="button" disabled>Extract</button>
           <button id="analyst-paste" type="button" hidden>Paste from clipboard</button>
@@ -225,7 +229,7 @@
             <div class="analyst-col">
               <label class="field">
                 <span>Analysed Result</span>
-                <textarea id="analyst-result" rows="12" spellcheck="true" placeholder="The model result appears here. It needs Date, Website, URL, Analyst, Short-term stock buy, Long-term stock buy, Short-term industry buy, Long-term industry buy, Long-term industry avoid, and Short-term stock avoid lines."></textarea>
+                <textarea id="analyst-result" rows="12" spellcheck="true" placeholder="The model result appears here. It needs Date, Website, URL, Analyst, Short-term stock buy, Long-term stock buy, Short-term industry buy, Long-term industry buy, Long-term industry avoid, Short-term stock avoid, and Notes lines."></textarea>
               </label>
               <div class="row analyst-action">
                 <button id="analyst-save" type="button" disabled>Save</button>
@@ -255,7 +259,6 @@
             <tr>
               <th>Date</th>
               <th>Source</th>
-              <th>Website</th>
               <th>Analyst name</th>
               <th>Short-term stock buy</th>
               <th>Long-term stock buy</th>
@@ -264,6 +267,7 @@
               <th>Long-term industry avoid</th>
               <th>Short-term stock avoid</th>
               <th>Notes</th>
+              <th class="row-actions" hidden></th>
             </tr>
           </thead>
           <tbody id="institution-body"></tbody>
@@ -286,7 +290,7 @@
         <li>The institutional buy/sell split is mock data, and only while Mock data is on. With the switch off the panel says institutional data is off, and that vote stays out of the average.</li>
       </ul>
       <h3>How a vote becomes a verdict</h3>
-      <p>Each active implemented indicator votes −1, 0, or +1. Placeholder rows vote N/A and are left out. The overall score is the mean of the votes that count. BUY if the mean is above 0.2, SELL if it is below −0.2, otherwise HOLD. Confidence is round(50 + mean × 50)%.</p>
+      <p>Each active implemented indicator votes −1, 0, or +1. Off and N/A stay out. The verdict is the largest count of buy, hold, or sell. A tie is HOLD. Confidence is that count divided by the active signals. The slider sits on the left for a sell, the middle for a hold, and the right for a buy.</p>
       <h3>Glossary</h3>
       <ul>
         <li><strong>SMA 20/50.</strong> Buy when close &gt; SMA 20 &gt; SMA 50. Sell when close &lt; SMA 20 &lt; SMA 50. If only one of the two is on, that average is compared with the close.</li>

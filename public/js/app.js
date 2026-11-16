@@ -563,41 +563,24 @@
     word.textContent = result.verdict;
     word.className = "verdict " + result.verdict;
     $("verdict-confidence").textContent = result.confidence + "% confidence";
-    $("verdict-detail").textContent = result.activeCount
-      ? "Mean vote " + result.average.toFixed(2) + " across " + result.activeCount + " active signals."
-      : "No active signals. Mean is 0, so the verdict is HOLD.";
+    $("verdict-detail").textContent = result.detail || "";
+    var knob = $("verdict-knob");
+    if (knob) {
+      var pos = typeof result.slider === "number" ? result.slider : 0.5;
+      if (pos < 0) pos = 0;
+      if (pos > 1) pos = 1;
+      knob.style.left = "calc(" + (pos * 100) + "% - " + (pos * 18) + "px)";
+    }
     var cats = $("category-bars");
     cats.textContent = "";
     [
-      ["trend", "Trend"],
-      ["momentum", "Momentum"],
-      ["volatility", "Volatility"],
-      ["volume", "Volume"],
-      ["levels", "Levels"],
+      ["BUY", result.buyCount || 0, "buy"],
+      ["HOLD", result.holdCount || 0, "hold"],
+      ["SELL", result.sellCount || 0, "sell"],
     ].forEach(function (pair) {
-      var nums = result.votes.filter(function (vote) {
-        return vote.group === pair[0] && typeof vote.vote === "number";
-      }).map(function (vote) { return vote.vote; });
-      var score = nums.length ? nums.reduce(function (sum, vote) { return sum + vote; }, 0) / nums.length : null;
-      var row = document.createElement("div");
-      row.className = "cat";
-      var label = document.createElement("span");
-      label.textContent = pair[1];
-      var track = document.createElement("div");
-      track.className = "track";
-      var axis = document.createElement("i");
-      track.appendChild(axis);
-      if (score) {
-        var fill = document.createElement("b");
-        fill.className = score > 0 ? "pos" : "neg";
-        fill.style.width = (Math.min(1, Math.abs(score)) * 50) + "%";
-        track.appendChild(fill);
-      }
-      var value = document.createElement("span");
-      value.textContent = score == null ? "—" : (score > 0 ? "+" : "") + score.toFixed(2);
-      row.appendChild(label);
-      row.appendChild(track);
-      row.appendChild(value);
+      var row = document.createElement("p");
+      row.className = "vote-count " + pair[2];
+      row.textContent = pair[0] + ": " + pair[1];
       cats.appendChild(row);
     });
     var votes = $("vote-list");
@@ -644,6 +627,14 @@
     });
   }
 
+  function byEventDate(a, b) {
+    var left = String(a && a.iso || "");
+    var right = String(b && b.iso || "");
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  }
+
   function paintEvents() {
     var host = $("events");
     host.textContent = "";
@@ -654,7 +645,7 @@
       host.appendChild(empty);
       return;
     }
-    state.events.forEach(function (event) {
+    state.events.slice().sort(byEventDate).forEach(function (event) {
       var button = document.createElement("button");
       button.type = "button";
       button.className = "event " + (event.status || "");
