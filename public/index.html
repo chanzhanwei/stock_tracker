@@ -179,38 +179,41 @@
       <p id="analyst-error" class="error" role="alert"></p>
       <p id="analyst-status" class="muted" role="status"></p>
       <div id="analyst-desk" class="analyst-desk">
-        <div class="analyst-tabs" role="tablist" aria-label="Source">
-          <button id="analyst-tab-url" type="button" role="tab" aria-selected="true" aria-controls="analyst-panel-url">New URL</button>
-          <button id="analyst-tab-channel" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-channel">New Channel</button>
-          <button id="analyst-tab-clipboard" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-clipboard">Clipboard</button>
-          <button id="analyst-tab-existing" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-existing">Existing Source</button>
-        </div>
-        <div id="analyst-panel-url" class="analyst-panel" role="tabpanel">
-          <label class="field">
-            <span>URL</span>
-            <input id="analyst-url-input" type="text" maxlength="2000" placeholder="Paste a URL" autocomplete="off" spellcheck="false">
-          </label>
-        </div>
-        <div id="analyst-panel-channel" class="analyst-panel" role="tabpanel" hidden>
-          <label class="field">
-            <span>Channel URL</span>
-            <input id="analyst-channel-input" type="text" maxlength="2000" placeholder="Paste a channel, profile, or site URL" autocomplete="off" spellcheck="false">
-          </label>
-        </div>
-        <div id="analyst-panel-clipboard" class="analyst-panel" role="tabpanel" hidden></div>
-        <div id="analyst-panel-existing" class="analyst-panel" role="tabpanel" hidden>
-          <label class="field">
-            <span>Source</span>
-            <select id="analyst-source"></select>
-          </label>
-        </div>
-        <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
-        <div class="row analyst-extract">
-          <button id="analyst-extract" type="button" disabled>Extract</button>
-          <button id="analyst-paste" type="button" hidden>Paste from clipboard</button>
-          <span id="analyst-thinking" class="analyst-thinking" hidden><i></i><i></i><i></i></span>
-        </div>
-        <img id="analyst-paste-preview" class="analyst-paste-preview" alt="" hidden>
+        <section class="sources-card" aria-labelledby="sources-title">
+          <h2 id="sources-title">Sources</h2>
+          <div class="analyst-tabs" role="tablist" aria-label="Source">
+            <button id="analyst-tab-url" type="button" role="tab" aria-selected="true" aria-controls="analyst-panel-url">New URL</button>
+            <button id="analyst-tab-channel" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-channel">New Channel</button>
+            <button id="analyst-tab-clipboard" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-clipboard">Clipboard</button>
+            <button id="analyst-tab-existing" type="button" role="tab" aria-selected="false" aria-controls="analyst-panel-existing">Existing Source</button>
+          </div>
+          <div id="analyst-panel-url" class="analyst-panel" role="tabpanel">
+            <label class="field">
+              <span>URL</span>
+              <input id="analyst-url-input" type="text" maxlength="2000" placeholder="Paste a URL" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <div id="analyst-panel-channel" class="analyst-panel" role="tabpanel" hidden>
+            <label class="field">
+              <span>Channel URL</span>
+              <input id="analyst-channel-input" type="text" maxlength="2000" placeholder="Paste a channel, profile, or site URL" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <div id="analyst-panel-clipboard" class="analyst-panel" role="tabpanel" hidden></div>
+          <div id="analyst-panel-existing" class="analyst-panel" role="tabpanel" hidden>
+            <label class="field">
+              <span>Source</span>
+              <select id="analyst-source"></select>
+            </label>
+          </div>
+          <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
+          <div class="row analyst-extract">
+            <button id="analyst-extract" type="button" disabled>Extract</button>
+            <button id="analyst-paste" type="button" hidden>Paste from clipboard</button>
+            <span id="analyst-thinking" class="analyst-thinking" hidden><i></i><i></i><i></i></span>
+            <img id="analyst-paste-preview" class="analyst-paste-preview" alt="" hidden>
+          </div>
+        </section>
         <div class="analyst-work">
           <label class="field analyst-model">
             <span>Model</span>
@@ -239,14 +242,22 @@
         </div>
         <details id="analyst-debug" class="analyst-debug">
           <summary>Debug</summary>
-          <label class="field">
-            <span>To OpenRouter</span>
-            <textarea id="analyst-debug-request" rows="8" readonly spellcheck="false"></textarea>
-          </label>
-          <label class="field">
-            <span>From OpenRouter</span>
-            <textarea id="analyst-debug-response" rows="8" readonly spellcheck="false"></textarea>
-          </label>
+          <div class="reasoning-line">
+            <span id="analyst-reasoning-label">Reasoning</span>
+            <span>off</span>
+            <input id="analyst-reasoning" type="range" min="0" max="1" step="1" value="0" aria-labelledby="analyst-reasoning-label">
+            <span>on</span>
+          </div>
+          <div class="analyst-columns">
+            <label class="field">
+              <span>To OpenRouter</span>
+              <textarea id="analyst-debug-request" rows="8" readonly spellcheck="false"></textarea>
+            </label>
+            <label class="field">
+              <span>From OpenRouter</span>
+              <textarea id="analyst-debug-response" rows="8" readonly spellcheck="false"></textarea>
+            </label>
+          </div>
         </details>
       </div>
     </div>
@@ -259,6 +270,7 @@
             <tr>
               <th>Date</th>
               <th>Source</th>
+              <th>Website</th>
               <th>Analyst name</th>
               <th>Short-term stock buy</th>
               <th>Long-term stock buy</th>

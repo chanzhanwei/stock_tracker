@@ -14,6 +14,12 @@
   var busy = "";
   var pastedImage = "";
   var editingId = "";
+  var IMAGE_MODEL = "xiaomi/mimo-v2.6-pro";
+  var MINIMAX_MODEL = "minimax/minimax-m3.1-flash";
+  var IMAGE_BLOCKED = {
+    "deepseek/deepseek-v4.1-flash-1017": true,
+    "anthropic/claude-haiku-5.5": true,
+  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -113,17 +119,47 @@
     mark.hidden = false;
   }
 
+  function reasoningOn() {
+    var input = $("analyst-reasoning");
+    return !!(input && String(input.value) === "1");
+  }
+
+  function setReasoning(on) {
+    var input = $("analyst-reasoning");
+    if (input) input.value = on ? "1" : "0";
+  }
+
+  function selectImageModel() {
+    var select = $("analyst-model");
+    if (!select) return;
+    select.value = IMAGE_MODEL;
+  }
+
+  function syncModelOptions() {
+    var select = $("analyst-model");
+    if (!select) return;
+    var image = !!pastedImage;
+    Array.prototype.forEach.call(select.options, function (option) {
+      option.disabled = !!(image && IMAGE_BLOCKED[option.value]);
+    });
+    if (image && IMAGE_BLOCKED[select.value]) select.value = IMAGE_MODEL;
+  }
+
   function showImage(url) {
     var preview = $("analyst-paste-preview");
+    var previous = pastedImage;
     pastedImage = url || "";
-    if (!preview) return;
-    if (!pastedImage) {
-      preview.removeAttribute("src");
-      preview.hidden = true;
-      return;
+    if (preview) {
+      if (!pastedImage) {
+        preview.removeAttribute("src");
+        preview.hidden = true;
+      } else {
+        preview.src = pastedImage;
+        preview.hidden = false;
+      }
     }
-    preview.src = pastedImage;
-    preview.hidden = false;
+    if (pastedImage && pastedImage !== previous) selectImageModel();
+    syncModelOptions();
   }
 
   function resetStep() {
@@ -207,6 +243,7 @@
       select.appendChild(option);
     });
     if (!select.value && models.length) select.value = defaultModel || models[0];
+    syncModelOptions();
   }
 
   function renderSources(sources, preferId) {
@@ -269,14 +306,20 @@
     tr.appendChild(td);
   }
 
+  function httpUrl(value) {
+    var text = String(value || "").trim();
+    return /^https?:\/\//i.test(text) ? text : "";
+  }
+
   function sourceCell(tr, row) {
     var td = document.createElement("td");
-    if (row.postUrl) {
+    var href = httpUrl(row.postUrl) || httpUrl(row.url);
+    if (href) {
       var link = document.createElement("a");
-      link.href = row.postUrl;
+      link.href = href;
       link.target = "_blank";
       link.rel = "noopener";
-      link.textContent = row.source || row.postUrl;
+      link.textContent = row.source || href;
       td.appendChild(link);
     } else {
       td.textContent = row.source || "";
@@ -326,6 +369,8 @@
       if (editing) inputCell(tr, "date", row.date);
       else textCell(tr, row.date);
       sourceCell(tr, row);
+      if (editing) inputCell(tr, "website", row.website);
+      else textCell(tr, row.website);
       if (editing) inputCell(tr, "analystName", row.analystName);
       else textCell(tr, row.analystName);
       if (editing) inputCell(tr, "shortTermStock", row.shortTermStock);
@@ -587,6 +632,7 @@
       setError("The text box is empty.");
       return;
     }
+    $("analyst-result").value = "";
     busy = "analyse";
     applySteps();
     setStatus("Analysing.");
@@ -598,9 +644,11 @@
         text: $("analyst-text").value,
         url: current && current.url ? current.url : "",
         image: image,
+        reasoning: reasoningOn(),
       });
       showDebug(result.body && result.body.debug);
       if (!result.ok) {
+        $("analyst-result").value = "";
         setStatus("");
         step.save = false;
         setError(explain(result.body));
@@ -615,10 +663,12 @@
       };
       renderModels();
       $("analyst-model").value = lastRun.model;
+      syncModelOptions();
       step.save = true;
       setStatus("You can edit the result before saving.");
     } catch (err) {
       showDebug(null);
+      $("analyst-result").value = "";
       setStatus("");
       step.save = false;
       setError("OpenRouter could not be reached.");
@@ -687,6 +737,9 @@
     $("analyst-channel-input").addEventListener("input", resetStep);
     $("analyst-source").addEventListener("change", resetStep);
     $("analyst-text").addEventListener("input", resetDebug);
+    $("analyst-model").addEventListener("change", function () {
+      if ($("analyst-model").value === MINIMAX_MODEL) setReasoning(true);
+    });
     $("analyst-extract").addEventListener("click", extract);
     $("analyst-paste").addEventListener("click", pasteClipboard);
     $("analyst-run").addEventListener("click", runAnalyse);

@@ -312,8 +312,11 @@ async function main() {
   assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
   assert(analystClient.includes("function placeThinking") && analystClient.includes('busy === "paste"') && analystClient.includes('busy === "save"'), "thinking mark follows the running button");
   assert(/function showTab\(next\) \{[\s\S]*?showTranscript\(null\)/.test(analystClient), "tab change hides the transcript line");
-  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 1.5rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
-  assert(page.includes(">Notes<") && analystClient.includes("row.note") && !page.includes("<th>Website</th>") && !analystClient.includes("cell(row.website)"), "institution shows the note and hides website");
+  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 3rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
+  assert(page.includes(">Sources<") && page.includes('class="sources-card"') && page.includes('id="analyst-reasoning"') && /id="analyst-reasoning"[\s\S]*id="analyst-debug-request"/.test(page) && /<details id="analyst-debug"[\s\S]*class="analyst-columns"[\s\S]*id="analyst-debug-request"[\s\S]*id="analyst-debug-response"/.test(page), "sources card and debug columns");
+  assert(/id="analyst-paste"[\s\S]*id="analyst-paste-preview"/.test(page) && analystCss.includes(".analyst-desk { width: 100%; margin: 0 auto; }") && analystCss.includes(".sources-card {"), "sources card and pasted image");
+  assert(page.includes(">Notes<") && page.includes("<th>Website</th>") && analystClient.includes("row.note") && analystClient.includes('inputCell(tr, "website", row.website)') && analystClient.includes("textCell(tr, row.website)"), "institution shows the note and website");
+  assert(analystClient.includes("httpUrl(row.postUrl) || httpUrl(row.url)") && analystClient.includes("minimax/minimax-m3.1-flash") && analystClient.includes("xiaomi/mimo-v2.6-pro") && analystClient.includes("deepseek/deepseek-v4.1-flash-1017") && analystClient.includes("anthropic/claude-haiku-5.5") && analystClient.includes("reasoning: reasoningOn()") && /function runAnalyse\(\) \{[\s\S]*?\$\("analyst-result"\)\.value = ""/.test(analystClient), "reasoning, image models, and a cleared result");
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
@@ -335,7 +338,7 @@ async function main() {
   assert(kept.includes("Notes: edited") && kept.includes("Website: TheStreet") && !kept.includes("Notes: old"), "edit rewrites the notes line");
   const addedLine = parse.replaceLabeledLine("Date: 2026-01-01", "Notes", "");
   assert(addedLine === "Date: 2026-01-01\nNotes: ", "edit adds a missing line");
-  assert(models.MODELS.length === 25 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
+  assert(models.MODELS.length === 24 && models.MODELS.indexOf("thinkingmachines/inkling-2-small:free") === -1 && models.MODELS.indexOf("xiaomi/mimo-v2.6-pro") !== -1 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
   const picks = parse.parsePicks([
     "Website: TheStreet",
     "Analyst: Ada",
@@ -385,7 +388,7 @@ async function main() {
   assert(shown.includes('"image_url"') && shown.includes("data:image/png;base64,[3 bytes]") && shown.indexOf("aaaa") === -1 && shown.includes("Read the attached image.") && shown.includes('"reasoning"'), "debug body is the request json");
   assert(priced.replyText({ content: [{ type: "text", text: "Date: 2026-11-01" }, { text: "\nAnalyst: Ada" }] }) === "Date: 2026-11-01\nAnalyst: Ada", "content parts join");
   const openrouterSrc = fs.readFileSync(path.join(root, "lib/analyst-openrouter.js"), "utf8");
-  assert(openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("withImage ? 60000 : 25000"), "image calls skip reasoning and wait 60 seconds");
+  assert(openrouterSrc.includes("reasoning: { enabled: reasoning === true }") && !openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("withImage ? 60000 : 25000"), "reasoning follows the slider and image calls wait 60 seconds");
   const realFetch = global.fetch;
   const savedOpenRouterKey = process.env.OPENROUTER_API_KEY;
   process.env.OPENROUTER_API_KEY = "test-key-not-sent";
@@ -400,8 +403,8 @@ async function main() {
       }),
     };
   };
-  const imageRun = await priced.analyse(models.DEFAULT_MODEL, "", "", "data:image/png;base64,aaaa");
-  assert(sentImage.reasoning.enabled === false && imageRun.text === "Date: 2026-11-01" && imageRun.debug.prompt.includes("data:image/png;base64,[3 bytes]") && imageRun.debug.prompt.indexOf("aaaa") === -1 && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply joins content parts");
+  const imageRun = await priced.analyse(models.DEFAULT_MODEL, "", "", "data:image/png;base64,aaaa", true);
+  assert(sentImage.reasoning.enabled === true && imageRun.text === "Date: 2026-11-01" && imageRun.debug.prompt.includes("data:image/png;base64,[3 bytes]") && imageRun.debug.prompt.indexOf("aaaa") === -1 && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply follows the reasoning slider");
   global.fetch = async function () {
     return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "", reasoning: "only reasoning" } }] }) };
   };
@@ -424,7 +427,7 @@ async function main() {
   } catch (err) {
     emptyText = err.message;
   }
-  assert(!sentText.reasoning && sentText.messages[1].content === "hello" && emptyText === "OpenRouter returned an empty result.", "text analyse stays on the empty result message");
+  assert(sentText.reasoning.enabled === false && sentText.messages[1].content === "hello" && emptyText === "OpenRouter returned an empty result.", "text analyse stays on the empty result message");
   global.fetch = realFetch;
   if (savedOpenRouterKey == null) delete process.env.OPENROUTER_API_KEY;
   else process.env.OPENROUTER_API_KEY = savedOpenRouterKey;
@@ -475,7 +478,7 @@ async function main() {
   const desk = mockRes();
   await analyst({ method: "GET", headers: { host: "localhost" } }, desk);
   assert(desk.statusCode === 200 && desk.body.database === false && desk.body.message.indexOf("DATABASE_URL") !== -1, "analyst names the missing database");
-  assert(desk.body.defaultModel === models.DEFAULT_MODEL && desk.body.models.length === 25 && desk.body.sources.length === 0, "desk models without a database");
+  assert(desk.body.defaultModel === models.DEFAULT_MODEL && desk.body.models.length === 24 && desk.body.models.indexOf("thinkingmachines/inkling-2-small:free") === -1 && desk.body.sources.length === 0, "desk models without a database");
   assert(JSON.stringify(desk.body).indexOf("sk-") === -1, "desk payload has no secret");
 
   const missingKey = mockRes();
@@ -649,7 +652,28 @@ async function main() {
         },
       }, clip);
       const clipView = (clip.body.results || []).find((row) => row.analystName === "Cleo");
-      assert(clip.statusCode === 200 && clipView && clipView.source === "Clipboard" && clipView.postUrl === "" && clipView.shortTermStock === "NVDA", "clipboard save has no post");
+      assert(clip.statusCode === 200 && clipView && clipView.source === "Clipboard" && clipView.postUrl === "" && clipView.url === "none" && clipView.website === "Clipboard" && clipView.shortTermStock === "NVDA", "clipboard save has no post");
+      const editedSite = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: {
+          action: "update-result",
+          id: savedView.id,
+          date: "2026-11-01",
+          website: "Edited Site",
+          analystName: "Ada",
+          shortTermStock: "NVDA",
+          longTermStock: "AAPL",
+          shortTermIndustry: "Semiconductors",
+          longTermIndustry: "Banks",
+          longTermIndustryAvoid: "Coal",
+          shortTermAvoid: "TSLA",
+          note: "Edited note.",
+        },
+      }, editedSite);
+      const editedView = (editedSite.body.results || []).find((row) => row.id === savedView.id);
+      assert(editedSite.statusCode === 200 && editedView && editedView.website === "Edited Site" && editedView.resultText.indexOf("Website: Edited Site") !== -1 && editedView.url === "https://example.com/newer", "edit stores the website line");
       const afterClip = mockRes();
       await analyst({ method: "GET", headers: { host: "localhost" } }, afterClip);
       assert(afterClip.statusCode === 200 && (afterClip.body.sources || []).every((source) => source.kind !== "clipboard"), "clipboard source stays out of the list");
