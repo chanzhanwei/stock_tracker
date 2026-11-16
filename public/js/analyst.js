@@ -139,13 +139,18 @@
   }
 
   function reasoningOn() {
-    var input = $("analyst-reasoning");
-    return !!(input && String(input.value) === "1");
+    var group = $("analyst-reasoning");
+    return !!(group && group.dataset.mode === "on");
   }
 
   function setReasoning(on) {
-    var input = $("analyst-reasoning");
-    if (input) input.value = on ? "1" : "0";
+    var group = $("analyst-reasoning");
+    if (!group) return;
+    var value = on ? "1" : "0";
+    group.dataset.mode = on ? "on" : "off";
+    Array.prototype.forEach.call(group.querySelectorAll("button"), function (button) {
+      button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
+    });
   }
 
   function applyReasoningForModel(modelId) {
@@ -772,6 +777,11 @@
     $("analyst-text").addEventListener("input", resetDebug);
     $("analyst-model").addEventListener("change", function () {
       applyReasoningForModel($("analyst-model").value);
+    });
+    $("analyst-reasoning").addEventListener("click", function (event) {
+      var button = event.target.closest("button");
+      if (!button || !button.dataset.value) return;
+      setReasoning(button.dataset.value === "1");
     });
     $("analyst-extract").addEventListener("click", extract);
     $("analyst-paste").addEventListener("click", pasteClipboard);
