@@ -524,7 +524,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 @media (prefers-reduced-motion: reduce) {
   .analyst-thinking i { animation: none; opacity: 1; }
 }
-.analyst-debug { margin-top: 0.6rem; }
+.analyst-debug { margin-top: 1.5rem; }
 .analyst-debug summary { cursor: pointer; color: var(--copper); width: fit-content; }
 .analyst-debug .field { margin: 0.7rem 0 0; }
 .analyst-note-cell { white-space: pre-wrap; min-width: 10rem; max-width: 18rem; }

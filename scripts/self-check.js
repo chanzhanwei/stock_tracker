@@ -308,7 +308,7 @@ async function main() {
   assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
   assert(analystClient.includes("function placeThinking") && analystClient.includes('busy === "paste"') && analystClient.includes('busy === "save"'), "thinking mark follows the running button");
   assert(/function showTab\(next\) \{[\s\S]*?showTranscript\(null\)/.test(analystClient), "tab change hides the transcript line");
-  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 0.6rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
+  assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 1.5rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
   assert(page.includes(">Notes<") && analystClient.includes("row.note"), "institution shows the note");
   assert(page.includes("Extract transcript from:"), "youtube transcript line");
   assert(page.includes('class="analyst-work"'), "gap before the text row");
@@ -339,7 +339,8 @@ async function main() {
   const dated = parse.parsePicks("Date: 2026-11-01\nURL: https://example.com/post\nAnalyst: Ada");
   assert(dated.date === "2026-11-01" && dated.url === "https://example.com/post" && dated.analystName === "Ada" && dated.note === "", "date and url lines");
   assert(parse.parsePicks("Analyst: Ada (TheStreet)").analystName === "Ada (TheStreet)", "analyst keeps the organisation");
-  assert(parse.parsePicks("Date: 2026-11-01\nAnalyst: Ada\nA short note\nSecond line").note === "A short note\nSecond line", "note is the trailing lines");
+  assert(parse.parsePicks("Date: 2026-11-01\nNotes: A short note").note === "A short note", "note is the Notes line");
+  assert(parse.parsePicks("Date: 2026-11-01\nA short note").note === "", "unlabeled lines are not the note");
   assert(parse.resultDate("Date: 2026-11-01") === "2026-11-01", "result date");
   assert(parse.resultDate("Date: yesterday") === "", "result date must be a calendar day");
   const dates = require("../lib/analyst-dates");
@@ -356,11 +357,18 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("2026-09-15") && prompt.includes("A purchase in that window is the short-term stock.") && prompt.includes("A sale in that window is the short-term avoid.") && prompt.includes("Date:") && prompt.includes("Website: <post platform>") && prompt.includes("Short-term stock buy:") && prompt.includes("Long-term industry avoid:") && prompt.includes("Short-term stock avoid:") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name> (<the commentator's organisation>)") && !prompt.includes("This is not financial advice."), "prompt window");
+  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
   assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
-  const shown = priced.debugPrompt("https://example.com/post", imageMessage);
-  assert(shown.includes("Image: image/png, 3 bytes") && shown.indexOf("base64") === -1 && shown.includes("Read the attached image."), "debug prompt describes the image");
+  const shown = priced.debugBody({
+    model: models.DEFAULT_MODEL,
+    messages: [
+      { role: "system", content: priced.instructions("https://example.com/post") },
+      { role: "user", content: imageMessage },
+    ],
+    reasoning: { enabled: false },
+  });
+  assert(shown.includes('"image_url"') && shown.includes("data:image/png;base64,[3 bytes]") && shown.indexOf("aaaa") === -1 && shown.includes("Read the attached image.") && shown.includes('"reasoning"'), "debug body is the request json");
   assert(priced.replyText({ content: [{ type: "text", text: "Date: 2026-11-01" }, { text: "\nAnalyst: Ada" }] }) === "Date: 2026-11-01\nAnalyst: Ada", "content parts join");
   const openrouterSrc = fs.readFileSync(path.join(root, "lib/analyst-openrouter.js"), "utf8");
   assert(openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("withImage ? 60000 : 25000"), "image calls skip reasoning and wait 60 seconds");
@@ -379,7 +387,7 @@ async function main() {
     };
   };
   const imageRun = await priced.analyse(models.DEFAULT_MODEL, "", "", "data:image/png;base64,aaaa");
-  assert(sentImage.reasoning.enabled === false && imageRun.text === "Date: 2026-11-01" && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply joins content parts");
+  assert(sentImage.reasoning.enabled === false && imageRun.text === "Date: 2026-11-01" && imageRun.debug.prompt.includes("data:image/png;base64,[3 bytes]") && imageRun.debug.prompt.indexOf("aaaa") === -1 && imageRun.debug.response.includes("hidden work") && imageRun.debug.response.indexOf("sk-or-") === -1, "image reply joins content parts");
   global.fetch = async function () {
     return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "", reasoning: "only reasoning" } }] }) };
   };
@@ -541,7 +549,7 @@ async function main() {
             "Long-term industry buy: Banks",
             "Long-term industry avoid: Coal",
             "Short-term stock avoid: TSLA",
-            "Edited note.",
+            "Notes: Edited note.",
           ].join("\n"),
           model: models.DEFAULT_MODEL,
           totalCost: 0.00015,
