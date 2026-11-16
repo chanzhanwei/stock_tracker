@@ -299,9 +299,11 @@ async function main() {
   const analystCss = fs.readFileSync(path.join(root, "public/css/style.css"), "utf8");
   const analystClient = fs.readFileSync(path.join(root, "public/js/analyst.js"), "utf8");
   const fetchSrc = fs.readFileSync(path.join(root, "lib/analyst-fetch.js"), "utf8");
+  const dbSrc = fs.readFileSync(path.join(root, "lib/analyst-db.js"), "utf8");
   assert(page.includes(">Analyze<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && !page.includes(">Analyst<") && !page.includes("ledger.js"), "stock, analyze, and institution switch");
   assert(!page.includes("LEDGER-Technical") && !page.includes("docs/LEDGER"), "spec is not shown");
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
+  assert(/EXISTS \(\s*SELECT 1 FROM analyst_items i WHERE i\.source_id = s\.id\s*\)/.test(dbSrc), "existing source lists only sources with a post");
   assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
   assert(analystClient.includes("Paste the YouTube transcript"), "youtube transcript is pasted");
   assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Clipboard<") && page.includes(">Existing Source<") && page.includes(">Paste from clipboard<"), "source tabs");
@@ -313,10 +315,15 @@ async function main() {
   assert(analystClient.includes("function placeThinking") && analystClient.includes('busy === "paste"') && analystClient.includes('busy === "save"'), "thinking mark follows the running button");
   assert(/function showTab\(next\) \{[\s\S]*?showTranscript\(null\)/.test(analystClient), "tab change hides the transcript line");
   assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 3rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
+  assert(page.includes('id="analyst-debug-request" rows="20"') && page.includes('id="analyst-debug-response" rows="20"'), "debug boxes show 20 lines");
+  assert(page.includes('id="analyst-text-field"'), "extracted text field can be hidden");
   assert(page.includes(">Sources<") && page.includes('class="sources-card"') && page.includes('id="analyst-reasoning"') && /id="analyst-reasoning"[\s\S]*id="analyst-debug-request"/.test(page) && /<details id="analyst-debug"[\s\S]*class="analyst-columns"[\s\S]*id="analyst-debug-request"[\s\S]*id="analyst-debug-response"/.test(page), "sources card and debug columns");
   assert(/id="analyst-paste"[\s\S]*id="analyst-paste-preview"/.test(page) && analystCss.includes(".analyst-desk { width: 100%; margin: 0 auto; }") && analystCss.includes(".sources-card {"), "sources card and pasted image");
   assert(page.includes(">Notes<") && page.includes("<th>Website</th>") && analystClient.includes("row.note") && analystClient.includes('inputCell(tr, "website", row.website)') && analystClient.includes("textCell(tr, row.website)"), "institution shows the note and website");
   assert(analystClient.includes("httpUrl(row.postUrl) || httpUrl(row.url)") && analystClient.includes("minimax/minimax-m3.1-flash") && analystClient.includes("xiaomi/mimo-v2.6-pro") && analystClient.includes("deepseek/deepseek-v4.1-flash-1017") && analystClient.includes("anthropic/claude-haiku-5.5") && analystClient.includes("reasoning: reasoningOn()") && /function runAnalyse\(\) \{[\s\S]*?\$\("analyst-result"\)\.value = ""/.test(analystClient), "reasoning, image models, and a cleared result");
+  assert(/function showTab\(next\) \{[\s\S]*?if \(changed\) clearAnalysis\(\)/.test(analystClient) && /\$\("analyst-source"\)\.addEventListener\("change", function \(\) \{\s*clearAnalysis\(\);/.test(analystClient), "tab and existing source clear the text and the result");
+  assert(/function syncExtractedText\(\) \{\s*var field = \$\("analyst-text-field"\);\s*if \(field\) field\.hidden = tab === "clipboard";/.test(analystClient), "clipboard hides extracted text");
+  assert(/function applyReasoningForModel\(modelId\) \{\s*setReasoning\(modelId === MINIMAX_MODEL\);/.test(analystClient), "only minimax turns reasoning on");
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
@@ -350,6 +357,8 @@ async function main() {
     "Short-term stock avoid: TSLA",
   ].join("\n"));
   assert(picks.website === "TheStreet" && picks.analystName === "Ada" && picks.shortTermStock === "NVDA, AMD" && picks.longTermStock === "AAPL" && picks.shortTermIndustry === "Semiconductors" && picks.longTermIndustry === "Banks" && picks.longTermIndustryAvoid === "Coal" && picks.shortTermAvoid === "TSLA", "picks");
+  const counted = parse.parsePicks("Short-term stock buy: NVDA (3), AAPL\nShort-term stock avoid: TSLA");
+  assert(counted.shortTermStock === "NVDA (3), AAPL" && counted.shortTermAvoid === "TSLA", "a repeated ticker keeps its count on the same line");
   const missing = parse.parsePicks("no labels");
   assert(missing.analystName === "" && missing.shortTermStock === "" && missing.shortTermAvoid === "", "missing picks");
   assert(parse.parsePicks("Short-term: NVDA\nLong-term: Banks").shortTermStock === "", "old pick labels are not enough");
@@ -374,7 +383,7 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
+  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.") && prompt.includes("Short-term stock buy: NVDA (3), AAPL") && prompt.includes("A ticker mentioned once has no count.") && prompt.includes("strong short-term stock buy") && prompt.includes("strong short-term stock avoid") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
   assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
   const shown = priced.debugBody({
@@ -539,7 +548,7 @@ async function main() {
         headers: { host: "localhost" },
         body: { action: "add-source", name: feedUrl, kind: "website" },
       }, created);
-      assert(created.statusCode === 200 && created.body.source && created.body.source.kind === "website", "admin adds a source");
+      assert(created.statusCode === 200 && created.body.source && created.body.source.kind === "website" && !(created.body.sources || []).some((source) => source.id === created.body.source.id), "admin adds a source that stays off the list until it has a post");
       const sourceId = created.body.source.id;
       const firstItem = mockRes();
       await analyst({
@@ -547,7 +556,7 @@ async function main() {
         headers: { host: "localhost" },
         body: { action: "fetch", sourceId: sourceId },
       }, firstItem);
-      assert(firstItem.statusCode === 200 && firstItem.body.item && firstItem.body.item.url === "https://example.com/newer" && firstItem.body.item.text.indexOf("Newer body") !== -1, "fetch returns the newest unprocessed item");
+      assert(firstItem.statusCode === 200 && firstItem.body.item && firstItem.body.item.url === "https://example.com/newer" && firstItem.body.item.text.indexOf("Newer body") !== -1 && (firstItem.body.sources || []).some((source) => source.id === sourceId), "fetch returns the newest unprocessed item and lists that source");
       const savedRow = mockRes();
       await analyst({
         method: "POST",

@@ -100,7 +100,26 @@
     }
     if (run) run.disabled = busy === "analyse" || !step.analyse;
     if (save) save.disabled = busy === "save" || !step.save;
+    syncExtractedText();
     placeThinking();
+  }
+
+  function syncExtractedText() {
+    var field = $("analyst-text-field");
+    if (field) field.hidden = tab === "clipboard";
+  }
+
+  function clearAnalysis() {
+    var text = $("analyst-text");
+    var result = $("analyst-result");
+    if (text) text.value = "";
+    if (result) result.value = "";
+    current = null;
+    lastRun = null;
+    step.analyse = false;
+    step.save = false;
+    setError("");
+    setStatus("");
   }
 
   function placeThinking() {
@@ -129,10 +148,15 @@
     if (input) input.value = on ? "1" : "0";
   }
 
+  function applyReasoningForModel(modelId) {
+    setReasoning(modelId === MINIMAX_MODEL);
+  }
+
   function selectImageModel() {
     var select = $("analyst-model");
     if (!select) return;
     select.value = IMAGE_MODEL;
+    applyReasoningForModel(IMAGE_MODEL);
   }
 
   function syncModelOptions() {
@@ -142,7 +166,10 @@
     Array.prototype.forEach.call(select.options, function (option) {
       option.disabled = !!(image && IMAGE_BLOCKED[option.value]);
     });
-    if (image && IMAGE_BLOCKED[select.value]) select.value = IMAGE_MODEL;
+    if (image && IMAGE_BLOCKED[select.value]) {
+      select.value = IMAGE_MODEL;
+      applyReasoningForModel(IMAGE_MODEL);
+    }
   }
 
   function showImage(url) {
@@ -172,9 +199,10 @@
 
   function showExtractFailure(message) {
     var box = $("analyst-text");
-    if (box) box.value = message || "";
+    var hiddenText = tab === "clipboard";
+    if (box) box.value = hiddenText ? "" : (message || "");
     resetDebug();
-    setError("");
+    setError(hiddenText ? (message || "") : "");
     current = null;
     lastRun = null;
     step.analyse = false;
@@ -212,6 +240,7 @@
   }
 
   function showTab(next) {
+    var changed = tab !== next;
     tab = next;
     [
       ["url", "analyst-tab-url", "analyst-panel-url"],
@@ -227,6 +256,7 @@
     });
     showTranscript(null);
     if (next !== "clipboard") showImage("");
+    if (changed) clearAnalysis();
     resetStep();
   }
 
@@ -735,10 +765,13 @@
     $("analyst-tab-existing").addEventListener("click", function () { showTab("existing"); });
     $("analyst-url-input").addEventListener("input", resetStep);
     $("analyst-channel-input").addEventListener("input", resetStep);
-    $("analyst-source").addEventListener("change", resetStep);
+    $("analyst-source").addEventListener("change", function () {
+      clearAnalysis();
+      resetStep();
+    });
     $("analyst-text").addEventListener("input", resetDebug);
     $("analyst-model").addEventListener("change", function () {
-      if ($("analyst-model").value === MINIMAX_MODEL) setReasoning(true);
+      applyReasoningForModel($("analyst-model").value);
     });
     $("analyst-extract").addEventListener("click", extract);
     $("analyst-paste").addEventListener("click", pasteClipboard);
