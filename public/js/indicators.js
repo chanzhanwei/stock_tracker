@@ -203,19 +203,66 @@
     return 0;
   }
 
+  function countWord(count, singular, plural) {
+    return count + " " + (count === 1 ? singular : plural);
+  }
+
+  function detailLine(buyCount, holdCount, sellCount, activeCount) {
+    if (!activeCount) return "No active signals, so the verdict is HOLD.";
+    var ranked = [
+      { n: holdCount, text: countWord(holdCount, "hold", "holds") },
+      { n: buyCount, text: countWord(buyCount, "buy", "buys") },
+      { n: sellCount, text: countWord(sellCount, "sell", "sells") },
+    ].filter(function (row) { return row.n > 0; });
+    ranked.sort(function (a, b) { return b.n - a.n; });
+    var parts = ranked.map(function (row) { return row.text; });
+    var body = parts[0] || "0 holds";
+    if (parts.length === 2) body = parts[0] + " and " + parts[1];
+    else if (parts.length > 2) body = parts[0] + ", " + parts[1] + ", and " + parts[2];
+    return body + " across " + activeCount + " active signal" + (activeCount === 1 ? "." : "s.");
+  }
+
   function aggregate(votes) {
-    if (!votes.length) return { average: 0, verdict: "HOLD", confidence: 50, activeCount: 0 };
+    if (!votes.length) {
+      return {
+        average: 0,
+        verdict: "HOLD",
+        confidence: 50,
+        activeCount: 0,
+        buyCount: 0,
+        holdCount: 0,
+        sellCount: 0,
+        slider: 0.5,
+        detail: detailLine(0, 0, 0, 0),
+      };
+    }
     var sum = 0;
-    for (var i = 0; i < votes.length; i += 1) sum += votes[i];
-    var average = sum / votes.length;
+    var buyCount = 0;
+    var holdCount = 0;
+    var sellCount = 0;
+    for (var i = 0; i < votes.length; i += 1) {
+      sum += votes[i];
+      if (votes[i] > 0) buyCount += 1;
+      else if (votes[i] < 0) sellCount += 1;
+      else holdCount += 1;
+    }
     var verdict = "HOLD";
-    if (average > 0.2) verdict = "BUY";
-    else if (average < -0.2) verdict = "SELL";
+    if (buyCount > holdCount && buyCount > sellCount) verdict = "BUY";
+    else if (sellCount > holdCount && sellCount > buyCount) verdict = "SELL";
+    var slider = 0.5;
+    if (verdict === "BUY") slider = 0.5 + 0.5 * (buyCount / votes.length);
+    else if (verdict === "SELL") slider = 0.5 - 0.5 * (sellCount / votes.length);
+    var top = Math.max(buyCount, holdCount, sellCount);
     return {
-      average: average,
+      average: sum / votes.length,
       verdict: verdict,
-      confidence: Math.round(50 + average * 50),
+      confidence: Math.round(100 * top / votes.length),
       activeCount: votes.length,
+      buyCount: buyCount,
+      holdCount: holdCount,
+      sellCount: sellCount,
+      slider: slider,
+      detail: detailLine(buyCount, holdCount, sellCount, votes.length),
     };
   }
 
@@ -419,6 +466,11 @@
       verdict: summary.verdict,
       confidence: summary.confidence,
       activeCount: summary.activeCount,
+      buyCount: summary.buyCount,
+      holdCount: summary.holdCount,
+      sellCount: summary.sellCount,
+      slider: summary.slider,
+      detail: summary.detail,
       quote: quote,
       customPeriod: period,
     };

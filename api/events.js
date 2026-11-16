@@ -46,6 +46,13 @@ module.exports = withErrors(async function events(req, res) {
     const agm = mocks.find((row) => row.type === "agm");
     if (agm) filled.push(agm);
   }
+  filled.sort(function (a, b) {
+    const left = String((a && a.iso) || "");
+    const right = String((b && b.iso) || "");
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  });
   let source = "none";
   if (filled.some((row) => row.source === "yahoo")) source = "yahoo";
   else if (filled.length) source = "mock";

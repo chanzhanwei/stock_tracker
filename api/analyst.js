@@ -14,6 +14,8 @@ const {
   takeNext,
   saveResult,
   saveClipboard,
+  updateResult,
+  deleteResult,
   rememberLabel,
   isProcessedUrl,
   openManual,
@@ -213,6 +215,22 @@ async function handle(req, res) {
     });
     const results = await listResults();
     send(res, 200, { saved: saved, results: results });
+    return;
+  }
+  if (action === "update-result") {
+    if (!isUuid(body.id)) {
+      send(res, 400, { error: "bad_request", message: "That saved row is gone." });
+      return;
+    }
+    send(res, 200, { results: await updateResult(body) });
+    return;
+  }
+  if (action === "delete-result") {
+    if (!isUuid(body.id)) {
+      send(res, 400, { error: "bad_request", message: "That saved row is gone." });
+      return;
+    }
+    send(res, 200, { results: await deleteResult(body.id) });
     return;
   }
   send(res, 400, { error: "invalid_action", message: "The Analyze desk did not understand that request." });

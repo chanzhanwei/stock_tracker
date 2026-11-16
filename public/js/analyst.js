@@ -13,6 +13,7 @@
   var step = { extract: false, analyse: false, save: false };
   var busy = "";
   var pastedImage = "";
+  var editingId = "";
 
   function $(id) { return document.getElementById(id); }
 
@@ -77,13 +78,6 @@
     return false;
   }
 
-  function selectedKind() {
-    var select = $("analyst-source");
-    if (!select || select.selectedIndex < 0) return "";
-    var option = select.options[select.selectedIndex];
-    return option && option.dataset ? option.dataset.kind || "" : "";
-  }
-
   function applySteps() {
     var extract = $("analyst-extract");
     var paste = $("analyst-paste");
@@ -143,6 +137,7 @@
   function showExtractFailure(message) {
     var box = $("analyst-text");
     if (box) box.value = message || "";
+    resetDebug();
     setError("");
     current = null;
     lastRun = null;
@@ -157,14 +152,17 @@
   function showTranscript(item) {
     var line = $("analyst-transcript");
     var link = $("analyst-transcript-url");
-    var youtube = item && item.kind === "youtube" && item.url;
+    var label = $("analyst-transcript-label");
+    var visible = item && item.url && (item.kind === "youtube" || item.kind === "website");
     if (!line || !link) return;
-    line.hidden = !youtube;
-    if (!youtube) {
+    line.hidden = !visible;
+    if (!visible) {
       link.removeAttribute("href");
       link.textContent = "";
+      if (label) label.hidden = false;
       return;
     }
+    if (label) label.hidden = item.kind !== "youtube";
     link.href = item.url;
     link.textContent = item.url;
   }
@@ -230,6 +228,89 @@
     });
   }
 
+  var ICONS = {
+    pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>',
+  };
+
+  function iconButton(label, icon, onClick) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "row-icon";
+    button.setAttribute("aria-label", label);
+    button.innerHTML = ICONS[icon];
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      onClick();
+    });
+    return button;
+  }
+
+  function institutionError(message) {
+    var el = $("institution-error");
+    if (el) el.textContent = message || "";
+  }
+
+  function textCell(tr, text) {
+    var td = document.createElement("td");
+    td.textContent = text == null ? "" : String(text);
+    tr.appendChild(td);
+  }
+
+  function inputCell(tr, name, value) {
+    var td = document.createElement("td");
+    var input = document.createElement("input");
+    input.type = "text";
+    input.dataset.field = name;
+    input.value = value == null ? "" : String(value);
+    td.appendChild(input);
+    tr.appendChild(td);
+  }
+
+  function sourceCell(tr, row) {
+    var td = document.createElement("td");
+    if (row.postUrl) {
+      var link = document.createElement("a");
+      link.href = row.postUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = row.source || row.postUrl;
+      td.appendChild(link);
+    } else {
+      td.textContent = row.source || "";
+    }
+    tr.appendChild(td);
+  }
+
+  async function commitEdit(row, tr) {
+    var payload = { action: "update-result", id: row.id };
+    tr.querySelectorAll("input[data-field]").forEach(function (input) {
+      payload[input.dataset.field] = input.value;
+    });
+    var result = await post(payload);
+    if (!result.ok) {
+      institutionError(explain(result.body));
+      return;
+    }
+    editingId = "";
+    institutionError("");
+    renderInstitution(result.body.results || []);
+  }
+
+  async function removeRow(row) {
+    if (!window.confirm("Delete this saved analysis?")) return;
+    var result = await post({ action: "delete-result", id: row.id });
+    if (!result.ok) {
+      institutionError(explain(result.body));
+      return;
+    }
+    if (editingId === row.id) editingId = "";
+    institutionError("");
+    renderInstitution(result.body.results || []);
+  }
+
   function renderInstitution(results) {
     var body = $("institution-body");
     var empty = $("institution-empty");
@@ -237,38 +318,53 @@
     body.textContent = "";
     var rows = results || [];
     if (empty) empty.hidden = rows.length > 0;
+    var actionHead = document.querySelector("#institution-saved th.row-actions");
+    if (actionHead) actionHead.hidden = !admin;
     rows.forEach(function (row) {
       var tr = document.createElement("tr");
-      function cell(text) {
-        var td = document.createElement("td");
-        td.textContent = text == null ? "" : String(text);
-        tr.appendChild(td);
+      var editing = admin && editingId === row.id;
+      if (editing) inputCell(tr, "date", row.date);
+      else textCell(tr, row.date);
+      sourceCell(tr, row);
+      if (editing) inputCell(tr, "analystName", row.analystName);
+      else textCell(tr, row.analystName);
+      if (editing) inputCell(tr, "shortTermStock", row.shortTermStock);
+      else textCell(tr, row.shortTermStock);
+      if (editing) inputCell(tr, "longTermStock", row.longTermStock);
+      else textCell(tr, row.longTermStock);
+      if (editing) inputCell(tr, "shortTermIndustry", row.shortTermIndustry);
+      else textCell(tr, row.shortTermIndustry);
+      if (editing) inputCell(tr, "longTermIndustry", row.longTermIndustry);
+      else textCell(tr, row.longTermIndustry);
+      if (editing) inputCell(tr, "longTermIndustryAvoid", row.longTermIndustryAvoid);
+      else textCell(tr, row.longTermIndustryAvoid);
+      if (editing) inputCell(tr, "shortTermAvoid", row.shortTermAvoid);
+      else textCell(tr, row.shortTermAvoid);
+      if (editing) inputCell(tr, "note", row.note);
+      else {
+        var noteCell = document.createElement("td");
+        noteCell.className = "analyst-note-cell";
+        noteCell.textContent = row.note || "";
+        tr.appendChild(noteCell);
       }
-      cell(row.date);
-      var sourceCell = document.createElement("td");
-      if (row.postUrl) {
-        var link = document.createElement("a");
-        link.href = row.postUrl;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = row.source || row.postUrl;
-        sourceCell.appendChild(link);
-      } else {
-        sourceCell.textContent = row.source || "";
+      if (admin) {
+        var actions = document.createElement("td");
+        actions.className = "row-actions";
+        if (editing) {
+          actions.appendChild(iconButton("Save", "check", function () { commitEdit(row, tr); }));
+          actions.appendChild(iconButton("Cancel", "x", function () {
+            editingId = "";
+            renderInstitution(rows);
+          }));
+        } else {
+          actions.appendChild(iconButton("Edit", "pencil", function () {
+            editingId = row.id;
+            renderInstitution(rows);
+          }));
+          actions.appendChild(iconButton("Delete", "trash", function () { removeRow(row); }));
+        }
+        tr.appendChild(actions);
       }
-      tr.appendChild(sourceCell);
-      cell(row.website);
-      cell(row.analystName);
-      cell(row.shortTermStock);
-      cell(row.longTermStock);
-      cell(row.shortTermIndustry);
-      cell(row.longTermIndustry);
-      cell(row.longTermIndustryAvoid);
-      cell(row.shortTermAvoid);
-      var noteCell = document.createElement("td");
-      noteCell.className = "analyst-note-cell";
-      noteCell.textContent = row.note || "";
-      tr.appendChild(noteCell);
       body.appendChild(tr);
     });
   }
@@ -286,7 +382,9 @@
     var same = current && current.id === item.id;
     current = item;
     if (!same) {
-      $("analyst-text").value = item.text || "";
+      var box = $("analyst-text");
+      if (box) box.value = item.text || "";
+      resetDebug();
       $("analyst-result").value = "";
       lastRun = null;
       step.save = false;
@@ -356,16 +454,6 @@
     showExtractFailure(result.body.message || "Nothing was extracted.");
   }
 
-  function pointPopup(popup, url) {
-    if (!popup) return;
-    if (!url) {
-      popup.close();
-      return;
-    }
-    try { popup.opener = null; } catch (err) { /* a blocked popup has no window */ }
-    popup.location.href = url;
-  }
-
   async function extract() {
     setError("");
     setStatus("");
@@ -381,10 +469,6 @@
       showExtractFailure("Paste a URL.");
       return;
     }
-    var popup = null;
-    if (tab === "existing" && (selectedKind() === "website" || selectedKind() === "youtube")) {
-      popup = window.open("about:blank", "_blank");
-    }
     busy = "extract";
     applySteps();
     try {
@@ -397,10 +481,12 @@
         result = await post({ action: "open-url", url: $("analyst-url-input").value.trim(), mode: "page" });
       }
       applyExtract(result);
-      pointPopup(popup, result.ok && result.body.item ? result.body.item.url : "");
+      var opened = result.ok && result.body && result.body.item;
+      if (tab === "existing" && opened && opened.url && (opened.kind === "website" || opened.kind === "youtube")) {
+        window.open(opened.url, "_blank", "noopener,noreferrer");
+      }
     } catch (err) {
       showExtractFailure("The text could not be extracted.");
-      pointPopup(popup, "");
     } finally {
       busy = "";
       applySteps();
@@ -460,6 +546,7 @@
       showImage(dataUrl);
       var box = $("analyst-text");
       if (box) box.value = "";
+      resetDebug();
       current = null;
       lastRun = null;
       step.analyse = true;
@@ -483,6 +570,12 @@
     var response = $("analyst-debug-response");
     if (request) request.value = debug && debug.prompt ? debug.prompt : "";
     if (response) response.value = debug && debug.response ? debug.response : "";
+  }
+
+  function resetDebug() {
+    showDebug(null);
+    var details = $("analyst-debug");
+    if (details) details.open = false;
   }
 
   async function runAnalyse() {
@@ -593,6 +686,7 @@
     $("analyst-url-input").addEventListener("input", resetStep);
     $("analyst-channel-input").addEventListener("input", resetStep);
     $("analyst-source").addEventListener("change", resetStep);
+    $("analyst-text").addEventListener("input", resetDebug);
     $("analyst-extract").addEventListener("click", extract);
     $("analyst-paste").addEventListener("click", pasteClipboard);
     $("analyst-run").addEventListener("click", runAnalyse);

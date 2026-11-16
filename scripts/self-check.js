@@ -85,14 +85,18 @@ if (saved.CLERK_PUBLISHABLE_KEY == null) delete process.env.CLERK_PUBLISHABLE_KE
 else process.env.CLERK_PUBLISHABLE_KEY = saved.CLERK_PUBLISHABLE_KEY;
 
 const summary = signals.aggregate([1, 0, 0, 0, 0]);
-assert(summary.verdict === "HOLD" && summary.average === 0.2 && summary.confidence === 60, "hold boundary");
+assert(summary.verdict === "HOLD" && summary.average === 0.2 && summary.confidence === 80 && summary.holdCount === 4 && summary.buyCount === 1 && summary.slider === 0.5 && summary.detail === "4 holds and 1 buy across 5 active signals.", "hold boundary");
 const buy = signals.aggregate([1, 1, 0, 0, 0]);
-assert(buy.verdict === "BUY" && buy.confidence === 70, "buy boundary");
+assert(buy.verdict === "HOLD" && buy.confidence === 60 && buy.buyCount === 2 && buy.holdCount === 3 && buy.detail === "3 holds and 2 buys across 5 active signals.", "two buys stay hold");
+const buyWin = signals.aggregate([1, 1, 1, 0, 0]);
+assert(buyWin.verdict === "BUY" && buyWin.confidence === 60 && Math.abs(buyWin.slider - 0.8) < 0.001 && buyWin.detail === "3 buys and 2 holds across 5 active signals.", "three buys");
 const sellEdge = signals.aggregate([-1, 0, 0, 0, 0]);
-assert(sellEdge.verdict === "HOLD" && sellEdge.confidence === 40, "sell boundary");
+assert(sellEdge.verdict === "HOLD" && sellEdge.confidence === 80 && sellEdge.slider === 0.5, "one sell stays hold");
 const sell = signals.aggregate([-1, -1, 0, 0, 0]);
-assert(sell.verdict === "SELL" && sell.confidence === 30, "sell");
-assert(signals.aggregate([]).verdict === "HOLD" && signals.aggregate([]).confidence === 50, "empty mean");
+assert(sell.verdict === "HOLD" && sell.confidence === 60 && sell.sellCount === 2, "two sells stay hold");
+const sellWin = signals.aggregate([-1, -1, -1, 0, 0]);
+assert(sellWin.verdict === "SELL" && sellWin.confidence === 60 && Math.abs(sellWin.slider - 0.2) < 0.001, "three sells");
+assert(signals.aggregate([]).verdict === "HOLD" && signals.aggregate([]).confidence === 50 && signals.aggregate([]).slider === 0.5, "empty mean");
 assert(signals.voteRsi(29) === 1 && signals.voteRsi(70) === 0 && signals.voteRsi(71) === -1, "rsi votes");
 assert(signals.voteSmaStack(11, 10, 9) === 1 && signals.voteSmaStack(8, 9, 10) === -1 && signals.voteSmaStack(10, 10, 9) === 0, "sma stack");
 assert(signals.voteVolume(140, 100, 11, 10) === 1 && signals.voteVolume(140, 100, 9, 10) === -1 && signals.voteVolume(120, 100, 11, 10) === 0, "volume votes");
@@ -309,7 +313,13 @@ async function main() {
   assert(analystClient.includes("function placeThinking") && analystClient.includes('busy === "paste"') && analystClient.includes('busy === "save"'), "thinking mark follows the running button");
   assert(/function showTab\(next\) \{[\s\S]*?showTranscript\(null\)/.test(analystClient), "tab change hides the transcript line");
   assert(page.includes('id="analyst-debug"') && !/id="analyst-debug"[^>]*\bopen\b/.test(page) && analystCss.includes(".analyst-debug { margin-top: 1.5rem; }") && page.includes(">To OpenRouter<") && page.includes(">From OpenRouter<"), "debug starts closed under the columns");
-  assert(page.includes(">Notes<") && analystClient.includes("row.note"), "institution shows the note");
+  assert(page.includes(">Notes<") && analystClient.includes("row.note") && !page.includes("<th>Website</th>") && !analystClient.includes("cell(row.website)"), "institution shows the note and hides website");
+  assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
+  assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
+  const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
+  const eventsSrc = fs.readFileSync(path.join(root, "api/events.js"), "utf8");
+  assert(eventsSrc.includes("filled.sort") && appClient.includes("function byEventDate"), "event cards run oldest to newest");
+  assert(page.includes('id="verdict-knob"') && analystCss.includes("linear-gradient(90deg, #e36a6a 0%, #e4b06a 50%, #3fbf8a 100%)") && appClient.includes('pair[0] + ": " + pair[1]'), "overall slider and vote counts");
   assert(page.includes("Extract transcript from:"), "youtube transcript line");
   assert(page.includes('class="analyst-work"'), "gap before the text row");
   assert(analystCss.includes(".analyst-work { margin-top: 3rem; }") && analystCss.includes(".analyst-model { margin: 0 0 3rem; }"), "three rem gaps around model");
@@ -321,6 +331,10 @@ async function main() {
   const fetched = require("../lib/analyst-fetch");
   const priced = require("../lib/analyst-openrouter");
   assert(models.DEFAULT_MODEL === "deepseek/deepseek-v4.1-flash-1017" && models.knownModel(models.DEFAULT_MODEL), "default model");
+  const kept = parse.replaceLabeledLine("Date: 2026-01-01\nWebsite: TheStreet\nNotes: old", "Notes", "edited");
+  assert(kept.includes("Notes: edited") && kept.includes("Website: TheStreet") && !kept.includes("Notes: old"), "edit rewrites the notes line");
+  const addedLine = parse.replaceLabeledLine("Date: 2026-01-01", "Notes", "");
+  assert(addedLine === "Date: 2026-01-01\nNotes: ", "edit adds a missing line");
   assert(models.MODELS.length === 25 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
   const picks = parse.parsePicks([
     "Website: TheStreet",
