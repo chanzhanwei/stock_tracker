@@ -245,6 +245,14 @@
           <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
           <div class="row analyst-extract">
             <button id="analyst-extract" type="button" disabled>Extract</button>
+            <div class="use-ai-line">
+              <span id="analyst-use-ai-label">Use AI</span>
+              <div id="analyst-use-ai" class="mode-slider reasoning-slider" data-mode="no" role="group" aria-labelledby="analyst-use-ai-label">
+                <span class="mode-thumb" aria-hidden="true"></span>
+                <button type="button" data-value="0" aria-pressed="true">No</button>
+                <button type="button" data-value="1" aria-pressed="false">Yes</button>
+              </div>
+            </div>
             <button id="analyst-paste" type="button" hidden>Paste from clipboard</button>
             <span id="analyst-thinking" class="analyst-thinking" hidden><i></i><i></i><i></i></span>
             <img id="analyst-paste-preview" class="analyst-paste-preview" alt="" hidden>

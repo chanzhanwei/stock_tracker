@@ -138,6 +138,21 @@
     mark.hidden = false;
   }
 
+  function useAiOn() {
+    var group = $("analyst-use-ai");
+    return !!(group && group.dataset.mode === "yes");
+  }
+
+  function setUseAi(on) {
+    var group = $("analyst-use-ai");
+    if (!group) return;
+    var value = on ? "1" : "0";
+    group.dataset.mode = on ? "yes" : "no";
+    Array.prototype.forEach.call(group.querySelectorAll("button"), function (button) {
+      button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
+    });
+  }
+
   function reasoningOn() {
     var group = $("analyst-reasoning");
     return !!(group && group.dataset.mode === "on");
@@ -422,12 +437,21 @@
     }
   }
 
+  function byDateDesc(a, b) {
+    var ad = a && a.date ? String(a.date) : "";
+    var bd = b && b.date ? String(b.date) : "";
+    if (ad === bd) return 0;
+    if (!ad) return 1;
+    if (!bd) return -1;
+    return ad < bd ? 1 : -1;
+  }
+
   function renderInstitution(results) {
     var body = $("institution-body");
     var empty = $("institution-empty");
     if (!body) return;
     body.textContent = "";
-    var rows = results || [];
+    var rows = (results || []).slice().sort(byDateDesc);
     if (empty) empty.hidden = rows.length > 0;
     var actionHead = document.querySelector("#institution-saved th.row-actions");
     if (actionHead) actionHead.hidden = !admin;
@@ -545,9 +569,17 @@
     applySteps();
   }
 
+  function revealDebug(debug) {
+    if (!debug || (!debug.prompt && !debug.response)) return;
+    showDebug(debug);
+    var details = $("analyst-debug");
+    if (details) details.open = true;
+  }
+
   function applyExtract(result) {
     if (!result.ok) {
       showExtractFailure(explain(result.body));
+      revealDebug(result.body && result.body.debug);
       return;
     }
     if (result.body.sources) {
@@ -555,6 +587,7 @@
     }
     if (result.body.item) {
       showItem(result.body.item);
+      revealDebug(result.body.debug);
       step.extract = canExtract();
       step.analyse = true;
       step.save = false;
@@ -608,12 +641,13 @@
     applySteps();
     try {
       var result;
+      var ai = { useAi: useAiOn(), model: $("analyst-model").value };
       if (tab === "existing") {
-        result = await post({ action: "fetch", sourceId: selectedSourceId() });
+        result = await post(Object.assign({ action: "fetch", sourceId: selectedSourceId() }, ai));
       } else if (tab === "channel") {
-        result = await post({ action: "open-url", url: $("analyst-channel-input").value.trim(), mode: "channel" });
+        result = await post(Object.assign({ action: "open-url", url: $("analyst-channel-input").value.trim(), mode: "channel" }, ai));
       } else {
-        result = await post({ action: "open-url", url: $("analyst-url-input").value.trim(), mode: "page" });
+        result = await post(Object.assign({ action: "open-url", url: $("analyst-url-input").value.trim(), mode: "page" }, ai));
       }
       applyExtract(result);
       var opened = result.ok && result.body && result.body.item;
@@ -838,6 +872,11 @@
       var button = event.target.closest("button");
       if (!button || !button.dataset.value) return;
       setReasoning(button.dataset.value === "1");
+    });
+    $("analyst-use-ai").addEventListener("click", function (event) {
+      var button = event.target.closest("button");
+      if (!button || !button.dataset.value) return;
+      setUseAi(button.dataset.value === "1");
     });
     $("analyst-extract").addEventListener("click", extract);
     $("analyst-remove-source").addEventListener("click", removeSelectedSource);

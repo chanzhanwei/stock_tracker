@@ -3,7 +3,7 @@
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
 const { canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, runWithFetchIdentity } = require("../lib/analyst-fetch");
-const { analyse } = require("../lib/analyst-openrouter");
+const { analyse, extractPage } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
   configured,
@@ -93,6 +93,16 @@ async function readDesk(user) {
   return deskPayload(user.admin, { prices: prices, sources: sources, results: results, message: "" });
 }
 
+async function applyAiExtract(payload, body) {
+  if (!body || body.useAi !== true) return payload;
+  const item = payload && payload.item;
+  if (!item || item.pasteTranscript || !String(item.text || "").trim()) return payload;
+  const extracted = await extractPage(body.model, item.text, item.url);
+  item.text = extracted.text;
+  payload.debug = extracted.debug;
+  return payload;
+}
+
 async function withIdentity(email, fn) {
   let identity = { userAgent: "", cookie: "" };
   try {
@@ -167,7 +177,8 @@ async function handle(req, res) {
       send(res, 400, { error: "bad_request", message: "Choose a saved source." });
       return;
     }
-    send(res, 200, await withIdentity(admin.email, function () { return fetchNext(body.sourceId); }));
+    const fetched = await withIdentity(admin.email, function () { return fetchNext(body.sourceId); });
+    send(res, 200, await applyAiExtract(fetched, body));
     return;
   }
   if (action === "remove-source") {
@@ -192,7 +203,7 @@ async function handle(req, res) {
       }
     }
     const target = await withIdentity(admin.email, function () { return openTarget(body.url, { mode: mode }); });
-    send(res, 200, await openManual(target, admin.email, mode));
+    send(res, 200, await applyAiExtract(await openManual(target, admin.email, mode), body));
     return;
   }
   if (action === "analyse") {

@@ -329,6 +329,7 @@ async function main() {
   assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Clipboard<") && page.includes(">Existing Source<") && page.includes(">Paste from clipboard<"), "source tabs");
   assert(!page.includes("Not financial advice."), "advice line is gone");
   assert(/id="analyst-extract"[^>]*disabled/.test(page) && /id="analyst-run"[^>]*disabled/.test(page), "extract and analyse start disabled");
+  assert(page.includes('id="analyst-use-ai"') && page.includes('data-mode="no"') && page.includes(">No<") && page.includes(">Yes<") && analystClient.includes("useAi: useAiOn()"), "use ai slider defaults to no");
   assert(page.includes(">Extracted Text<") && page.includes(">Analysed Result<"), "text and result sit apart");
   assert(/id="analyst-save"[^>]*disabled/.test(page), "save starts disabled");
   assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
@@ -411,7 +412,7 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.\nAlways use ticker symbol when possible.") && prompt.includes("Short-term stock buy: NVDA (3), AAPL") && prompt.includes("A ticker mentioned once has no count.") && prompt.includes("strong short-term stock buy") && prompt.includes("strong short-term stock avoid") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
+  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("Ignore Treasury Bills & Notes, Government Bonds") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.\nAlways use ticker symbol when possible.") && prompt.includes("Short-term stock buy: NVDA (3), AAPL") && prompt.includes("A ticker mentioned once has no count.") && prompt.includes("strong short-term stock buy") && prompt.includes("strong short-term stock avoid") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
   assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
   const shown = priced.debugBody({
@@ -465,6 +466,13 @@ async function main() {
     emptyText = err.message;
   }
   assert(sentText.reasoning.enabled === false && sentText.messages[1].content === "hello" && emptyText === "OpenRouter returned an empty result.", "text analyse stays on the empty result message");
+  let sentExtract = null;
+  global.fetch = async function (_url, options) {
+    sentExtract = JSON.parse(options.body);
+    return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "Article body" } }] }) };
+  };
+  const extracted = await priced.extractPage(models.DEFAULT_MODEL, "nav article", "https://example.com/post");
+  assert(sentExtract.messages[0].content === priced.extractInstructions() && sentExtract.messages[1].content.indexOf("URL: https://example.com/post") === 0 && extracted.text === "Article body" && sentExtract.reasoning.enabled === false, "use ai extract sends the extract instructions");
   global.fetch = realFetch;
   if (savedOpenRouterKey == null) delete process.env.OPENROUTER_API_KEY;
   else process.env.OPENROUTER_API_KEY = savedOpenRouterKey;
@@ -512,6 +520,13 @@ async function main() {
   assert(blankCosts.totalCost == null && blankCosts.inputCost == null && blankCosts.outputCost == null, "costs blank without a call");
 
   const analystDb = require("../lib/analyst-db");
+  const ordered = analystDb.sortResults([
+    { date: "2026-01-01" },
+    { date: "" },
+    { date: "2026-11-02" },
+    { date: "2026-03-01" },
+  ]);
+  assert(ordered.map(function (row) { return row.date; }).join(",") === "2026-11-02,2026-03-01,2026-01-01,", "institution dates sort newest first");
   await analystDb.rememberLabel("unused", '""');
   await analystDb.rememberLabel("unused", '"');
   const analyst = require("../api/analyst");

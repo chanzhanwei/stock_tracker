@@ -591,17 +591,33 @@
       return;
     }
     high.hidden = false;
-    high.textContent = "High " + formatPrice(facts.high) + " on " + facts.highDate;
+    high.textContent = "(Highest " + formatPrice(facts.high) + " @ " + quoteDate(facts.highDate) + ")";
     if (facts.declinePct == null || !isFinite(facts.declinePct)) {
       drop.hidden = true;
       drop.textContent = "";
       return;
     }
     drop.hidden = false;
-    var visit = facts.lastVisit
-      ? "last at this price " + facts.lastVisit
-      : "has not traded here in the loaded history";
-    drop.textContent = facts.declinePct.toFixed(1) + "% below the high · " + visit;
+    drop.textContent = "";
+    drop.appendChild(document.createTextNode("Decline: "));
+    var pct = document.createElement("span");
+    pct.className = "down";
+    pct.textContent = "-" + facts.declinePct.toFixed(1) + "%";
+    drop.appendChild(pct);
+    var rest = facts.lastVisit
+      ? ". Same as " + quoteDate(facts.lastVisit)
+      : ". Has not traded here in the loaded history";
+    drop.appendChild(document.createTextNode(rest));
+  }
+
+  function quoteDate(iso) {
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var parts = String(iso || "").split("-");
+    if (parts.length !== 3) return iso || "";
+    var month = months[Number(parts[1]) - 1];
+    var day = Number(parts[2]);
+    if (!month || !day) return iso || "";
+    return day + "-" + month + "-" + parts[0];
   }
 
   function paintVerdict(result) {
