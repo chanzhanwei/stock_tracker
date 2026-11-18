@@ -327,7 +327,8 @@ async function main() {
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
-  assert(appClient.includes("mock.hidden = analyze || institution") && analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "view sits right of help in info blue and mock stays on stock");
+  assert(appClient.includes("mock.hidden = analyze || institution") && !analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "mock stays on stock and the selected view is info blue");
+  assert(page.includes('aria-label="Help"') && page.includes('aria-label="Account"') && /id="who"[\s\S]*id="info-button"[\s\S]*id="signout"/.test(page) && !page.includes(">Help<") && !page.includes(">Users<"), "help and account are icons, and help sits left of sign out");
   const eventsSrc = fs.readFileSync(path.join(root, "api/events.js"), "utf8");
   assert(eventsSrc.includes("filled.sort") && appClient.includes("function byEventDate"), "event cards run oldest to newest");
   assert(page.includes('id="verdict-knob"') && analystCss.includes("linear-gradient(90deg, #e36a6a 0%, #e4b06a 50%, #3fbf8a 100%)") && appClient.includes('pair[0] + ": " + pair[1]'), "overall slider and vote counts");

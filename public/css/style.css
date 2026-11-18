@@ -208,8 +208,16 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  margin-left: calc(100px - 0.4rem);
 }
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+.icon-button svg { display: block; }
 .view-label { color: var(--text); }
 .view-choices {
   display: inline-flex;
