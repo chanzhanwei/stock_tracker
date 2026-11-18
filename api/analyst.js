@@ -2,7 +2,7 @@
 
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
-const { canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel } = require("../lib/analyst-fetch");
+const { canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, runWithFetchIdentity } = require("../lib/analyst-fetch");
 const { analyse } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
@@ -19,6 +19,7 @@ const {
   rememberLabel,
   isProcessedUrl,
   openManual,
+  getFetchSettings,
 } = require("../lib/analyst-db");
 const { readBody, requireAdmin, requireUser, send, withErrors } = require("../lib/allowlist");
 
@@ -91,6 +92,16 @@ async function readDesk(user) {
   return deskPayload(user.admin, { prices: prices, sources: sources, results: results, message: "" });
 }
 
+async function withIdentity(email, fn) {
+  let identity = { userAgent: "", cookie: "" };
+  try {
+    identity = await getFetchSettings(email);
+  } catch (err) {
+    identity = { userAgent: "", cookie: "" };
+  }
+  return runWithFetchIdentity(identity, fn);
+}
+
 async function fetchNext(sourceId) {
   const source = await getSource(sourceId);
   if (!source) {
@@ -155,7 +166,7 @@ async function handle(req, res) {
       send(res, 400, { error: "bad_request", message: "Choose a saved source." });
       return;
     }
-    send(res, 200, await fetchNext(body.sourceId));
+    send(res, 200, await withIdentity(admin.email, function () { return fetchNext(body.sourceId); }));
     return;
   }
   if (action === "open-url") {
@@ -168,7 +179,7 @@ async function handle(req, res) {
       });
       return;
     }
-    const target = await openTarget(body.url);
+    const target = await withIdentity(admin.email, function () { return openTarget(body.url); });
     const mode = body.mode === "channel" || body.mode === "page" ? body.mode : "";
     send(res, 200, await openManual(target, admin.email, mode));
     return;

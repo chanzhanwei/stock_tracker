@@ -96,16 +96,45 @@
         <input id="mock-toggle" type="checkbox" role="switch">
         <span>Mock data</span>
       </label>
-      <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
-        <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
-        <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
-        <button id="mode-analyze" type="button" aria-pressed="false">Analyze</button>
-        <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
-      </div>
       <div class="top-actions">
-        <button id="info-button" type="button" class="ghost">Help</button>
-        <button id="users-button" type="button" class="ghost" hidden>Users</button>
-        <span id="who" class="who"></span>
+        <div id="mode-slider" class="view-switch" data-mode="stock" role="group" aria-label="View">
+          <span class="view-label">View:</span>
+          <div class="view-choices">
+            <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
+            <span class="view-pipe" aria-hidden="true">|</span>
+            <button id="mode-analyze" type="button" aria-pressed="false">Analyse</button>
+            <span class="view-pipe" aria-hidden="true">|</span>
+            <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
+          </div>
+        </div>
+        <div class="account">
+          <button id="account-button" type="button" class="ghost icon-button" aria-label="Account" aria-expanded="false" aria-controls="account-menu">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M10.2 2.7h3.6l.5 2.1c.6.2 1.2.5 1.7.8l2-1 1.8 1.8-1 2c.3.5.6 1.1.8 1.7l2.1.5v3.6l-2.1.5c-.2.6-.5 1.2-.8 1.7l1 2-1.8 1.8-2-1c-.5.3-1.1.6-1.7.8l-.5 2.1h-3.6l-.5-2.1a7 7 0 0 1-1.7-.8l-2 1-1.8-1.8 1-2a7 7 0 0 1-.8-1.7l-2.1-.5V9.6l2.1-.5c.2-.6.5-1.2.8-1.7l-1-2 1.8-1.8 2 1c.5-.3 1.1-.6 1.7-.8l.5-2.1z"></path>
+              <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"></circle>
+            </svg>
+          </button>
+          <div id="account-menu" class="account-menu" hidden>
+            <p id="who" class="who"></p>
+            <label class="field">
+              <span>User-Agent</span>
+              <input id="fetch-user-agent" type="text" maxlength="500" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Cookie</span>
+              <textarea id="fetch-cookie" rows="3" maxlength="8000" autocomplete="off" spellcheck="false"></textarea>
+            </label>
+            <p id="fetch-settings-status" class="fine" role="status"></p>
+            <button id="fetch-settings-save" type="button">Save</button>
+            <button id="users-button" type="button" class="ghost" hidden>Allowed emails</button>
+          </div>
+        </div>
+        <button id="info-button" type="button" class="ghost icon-button" aria-label="Help">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+            <text x="12" y="16.4" text-anchor="middle" font-size="13" font-weight="700" fill="currentColor" font-family="system-ui, sans-serif">?</text>
+          </svg>
+        </button>
         <button id="signout" type="button" class="ghost">Sign out</button>
       </div>
     </header>
@@ -205,6 +234,7 @@
               <span>Source</span>
               <select id="analyst-source"></select>
             </label>
+            <p id="analyst-source-url" class="analyst-url" hidden></p>
           </div>
           <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
           <div class="row analyst-extract">

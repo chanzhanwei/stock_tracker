@@ -281,11 +281,13 @@
       return;
     }
     if (res.ok) {
-      state.admin = true;
-      state.email = body.me || state.email;
+      state.admin = body.admin === true;
+      state.email = body.me || body.email || state.email;
+      fillFetchSettings(body);
     } else if (body.allowed) {
       state.admin = false;
       state.email = body.email || state.email;
+      fillFetchSettings(body);
     } else {
       showScreen("screen-auth");
       showAuthError(body.error || "The desk could not be opened.");
@@ -928,9 +930,24 @@
       if (event.target === $("info-overlay")) $("info-overlay").hidden = true;
     });
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") $("info-overlay").hidden = true;
+      if (event.key === "Escape") {
+        $("info-overlay").hidden = true;
+        setAccountMenu(false);
+      }
     });
-    $("users-button").addEventListener("click", openAdmin);
+    $("account-button").addEventListener("click", function () {
+      setAccountMenu($("account-menu").hidden);
+    });
+    document.addEventListener("click", function (event) {
+      if ($("account-menu").hidden) return;
+      if (event.target.closest && event.target.closest(".account")) return;
+      setAccountMenu(false);
+    });
+    $("users-button").addEventListener("click", function () {
+      setAccountMenu(false);
+      openAdmin();
+    });
+    $("fetch-settings-save").addEventListener("click", saveFetchSettings);
     $("admin-back").addEventListener("click", function () { showScreen("screen-app"); syncChartSizes(); });
     $("admin-blocked-back").addEventListener("click", function () { showScreen("screen-app"); syncChartSizes(); });
     $("admin-form").addEventListener("submit", function (event) {
@@ -950,6 +967,41 @@
     $("mode-institution").addEventListener("click", function () { setMode("institution"); });
   }
 
+  function fillFetchSettings(body) {
+    var agent = $("fetch-user-agent");
+    var cookie = $("fetch-cookie");
+    if (agent) agent.value = body && body.userAgent ? body.userAgent : "";
+    if (cookie) cookie.value = body && body.cookie ? body.cookie : "";
+  }
+
+  async function saveFetchSettings() {
+    var status = $("fetch-settings-status");
+    if (status) status.textContent = "";
+    var res = await api("/api/users", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "save-fetch",
+        userAgent: $("fetch-user-agent").value,
+        cookie: $("fetch-cookie").value,
+      }),
+    });
+    var body = {};
+    try { body = await res.json(); } catch (err) { body = {}; }
+    if (!res.ok) {
+      if (status) status.textContent = "The fetch settings were not saved.";
+      return;
+    }
+    fillFetchSettings(body);
+    if (status) status.textContent = "Saved.";
+  }
+
+  function setAccountMenu(open) {
+    var menu = $("account-menu");
+    if (!menu) return;
+    menu.hidden = !open;
+    $("account-button").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
   function setMode(mode) {
     var analyze = mode === "analyze";
     var institution = mode === "institution";
@@ -958,6 +1010,8 @@
     $("analyst").hidden = !analyze;
     $("institution").hidden = !institution;
     $("mode-slider").dataset.mode = institution ? "institution" : analyze ? "analyze" : "stock";
+    var mock = document.querySelector(".mock-switch");
+    if (mock) mock.hidden = analyze || institution;
     $("mode-stock").setAttribute("aria-pressed", (!analyze && !institution) ? "true" : "false");
     $("mode-analyze").setAttribute("aria-pressed", analyze ? "true" : "false");
     $("mode-institution").setAttribute("aria-pressed", institution ? "true" : "false");
