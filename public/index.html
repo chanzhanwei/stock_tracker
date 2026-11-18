@@ -116,6 +116,16 @@
           </button>
           <div id="account-menu" class="account-menu" hidden>
             <p id="who" class="who"></p>
+            <label class="field">
+              <span>User-Agent</span>
+              <input id="fetch-user-agent" type="text" maxlength="500" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Cookie</span>
+              <textarea id="fetch-cookie" rows="3" maxlength="8000" autocomplete="off" spellcheck="false"></textarea>
+            </label>
+            <p id="fetch-settings-status" class="fine" role="status"></p>
+            <button id="fetch-settings-save" type="button">Save</button>
             <button id="users-button" type="button" class="ghost" hidden>Allowed emails</button>
           </div>
         </div>
@@ -224,6 +234,7 @@
               <span>Source</span>
               <select id="analyst-source"></select>
             </label>
+            <p id="analyst-source-url" class="analyst-url" hidden></p>
           </div>
           <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
           <div class="row analyst-extract">

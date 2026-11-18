@@ -250,7 +250,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   top: calc(100% + 0.4rem);
   right: 0;
   z-index: 8;
-  min-width: 16rem;
+  width: 18rem;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -260,7 +260,21 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   border-radius: 10px;
   box-shadow: var(--shadow);
 }
+.account-menu .field { margin: 0.1rem 0; }
+.account-menu textarea {
+  width: 100%;
+  min-height: 4.2rem;
+  resize: vertical;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  color: inherit;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font: inherit;
+}
+.account-menu .fine { margin: 0; }
 .account-menu .ghost { width: 100%; }
+body.is-waiting, body.is-waiting * { cursor: wait !important; }
 .who { color: var(--muted); font-size: 0.82rem; margin: 0; overflow-wrap: anywhere; }
 
 .workspace {
@@ -547,6 +561,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 }
 .analyst-panel .field { margin: 0.2rem 0 0.45rem; }
 .analyst-panel input, .analyst-panel select, #analyst-model { width: 100%; }
+.analyst-url { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
 .analyst-transcript { margin: 0.15rem 0 0.7rem; }
 .analyst-transcript a { color: var(--info); word-break: break-all; }
 .analyst-extract { align-items: center; }

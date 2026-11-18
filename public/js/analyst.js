@@ -289,10 +289,27 @@
       var option = document.createElement("option");
       option.value = source.id;
       option.dataset.kind = source.kind;
+      option.dataset.url = source.url || "";
       option.textContent = (source.displayName || source.name) + " — " + kindLabel(source.kind);
       if (source.id === selected) option.selected = true;
       select.appendChild(option);
     });
+    showSourceUrl();
+  }
+
+  function showSourceUrl() {
+    var select = $("analyst-source");
+    var line = $("analyst-source-url");
+    if (!line) return;
+    var option = select && select.selectedOptions && select.selectedOptions[0];
+    var url = option && option.dataset.url ? option.dataset.url : "";
+    if (!select || !select.value || !url) {
+      line.hidden = true;
+      line.textContent = "";
+      return;
+    }
+    line.hidden = false;
+    line.textContent = "URL: " + url;
   }
 
   var ICONS = {
@@ -326,10 +343,10 @@
     tr.appendChild(td);
   }
 
-  function inputCell(tr, name, value) {
+  function inputCell(tr, name, value, type) {
     var td = document.createElement("td");
     var input = document.createElement("input");
-    input.type = "text";
+    input.type = type || "text";
     input.dataset.field = name;
     input.value = value == null ? "" : String(value);
     td.appendChild(input);
@@ -362,26 +379,36 @@
     tr.querySelectorAll("input[data-field]").forEach(function (input) {
       payload[input.dataset.field] = input.value;
     });
-    var result = await post(payload);
-    if (!result.ok) {
-      institutionError(explain(result.body));
-      return;
+    document.body.classList.add("is-waiting");
+    try {
+      var result = await post(payload);
+      if (!result.ok) {
+        institutionError(explain(result.body));
+        return;
+      }
+      editingId = "";
+      institutionError("");
+      renderInstitution(result.body.results || []);
+    } finally {
+      document.body.classList.remove("is-waiting");
     }
-    editingId = "";
-    institutionError("");
-    renderInstitution(result.body.results || []);
   }
 
   async function removeRow(row) {
     if (!window.confirm("Delete this saved analysis?")) return;
-    var result = await post({ action: "delete-result", id: row.id });
-    if (!result.ok) {
-      institutionError(explain(result.body));
-      return;
+    document.body.classList.add("is-waiting");
+    try {
+      var result = await post({ action: "delete-result", id: row.id });
+      if (!result.ok) {
+        institutionError(explain(result.body));
+        return;
+      }
+      if (editingId === row.id) editingId = "";
+      institutionError("");
+      renderInstitution(result.body.results || []);
+    } finally {
+      document.body.classList.remove("is-waiting");
     }
-    if (editingId === row.id) editingId = "";
-    institutionError("");
-    renderInstitution(result.body.results || []);
   }
 
   function renderInstitution(results) {
@@ -396,7 +423,7 @@
     rows.forEach(function (row) {
       var tr = document.createElement("tr");
       var editing = admin && editingId === row.id;
-      if (editing) inputCell(tr, "date", row.date);
+      if (editing) inputCell(tr, "date", row.date, "date");
       else textCell(tr, row.date);
       sourceCell(tr, row);
       if (editing) inputCell(tr, "website", row.website);
@@ -766,6 +793,7 @@
     $("analyst-url-input").addEventListener("input", resetStep);
     $("analyst-channel-input").addEventListener("input", resetStep);
     $("analyst-source").addEventListener("change", function () {
+      showSourceUrl();
       clearAnalysis();
       resetStep();
     });

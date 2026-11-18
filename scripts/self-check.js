@@ -191,7 +191,14 @@ async function main() {
     method: "GET",
     headers: { host: "localhost", "x-dev-email": outsider },
   }, notAdmin);
-  assert(notAdmin.statusCode === 403 && notAdmin.body.error === "admin_only" && !notAdmin.body.emails, "non-admin user screen");
+  assert(notAdmin.statusCode === 200 && notAdmin.body.admin === false && !notAdmin.body.emails && notAdmin.body.userAgent === "" && notAdmin.body.cookie === "", "non-admin reads their own fetch settings");
+  const savedIdentity = mockRes();
+  await users({
+    method: "POST",
+    headers: { host: "localhost", "x-dev-email": outsider },
+    body: { action: "save-fetch", userAgent: "Browser/1", cookie: "a=b" },
+  }, savedIdentity);
+  assert(savedIdentity.statusCode === 503 && savedIdentity.body.error === "database_unconfigured", "fetch settings need the database");
 
   const removed = mockRes();
   await users({
@@ -304,6 +311,7 @@ async function main() {
   assert(!page.includes("LEDGER-Technical") && !page.includes("docs/LEDGER"), "spec is not shown");
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
   assert(/EXISTS \(\s*SELECT 1 FROM analyst_items i WHERE i\.source_id = s\.id\s*\)/.test(dbSrc), "existing source lists only sources with a post");
+  assert(dbSrc.includes("CREATE TABLE IF NOT EXISTS analyst_fetch_settings") && dbSrc.includes("DELETE FROM analyst_sources WHERE btrim(label)") && dbSrc.includes("resultDate(row.result_text)"), "fetch settings, quote labels, and calendar dates");
   assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
   assert(analystClient.includes("Paste the YouTube transcript"), "youtube transcript is pasted");
   assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Clipboard<") && page.includes(">Existing Source<") && page.includes(">Paste from clipboard<"), "source tabs");
@@ -321,7 +329,7 @@ async function main() {
   assert(/id="analyst-paste"[\s\S]*id="analyst-paste-preview"/.test(page) && analystCss.includes(".analyst-desk { width: 100%; margin: 0 auto; }") && analystCss.includes(".sources-card {"), "sources card and pasted image");
   assert(page.includes(">Notes<") && page.includes("<th>Website</th>") && analystClient.includes("row.note") && analystClient.includes('inputCell(tr, "website", row.website)') && analystClient.includes("textCell(tr, row.website)"), "institution shows the note and website");
   assert(analystClient.includes("httpUrl(row.postUrl) || httpUrl(row.url)") && analystClient.includes("minimax/minimax-m3.1-flash") && analystClient.includes("xiaomi/mimo-v2.6-pro") && analystClient.includes("deepseek/deepseek-v4.1-flash-1017") && analystClient.includes("anthropic/claude-haiku-5.5") && analystClient.includes("reasoning: reasoningOn()") && /function runAnalyse\(\) \{[\s\S]*?\$\("analyst-result"\)\.value = ""/.test(analystClient), "reasoning, image models, and a cleared result");
-  assert(/function showTab\(next\) \{[\s\S]*?if \(changed\) clearAnalysis\(\)/.test(analystClient) && /\$\("analyst-source"\)\.addEventListener\("change", function \(\) \{\s*clearAnalysis\(\);/.test(analystClient), "tab and existing source clear the text and the result");
+  assert(/function showTab\(next\) \{[\s\S]*?if \(changed\) clearAnalysis\(\)/.test(analystClient) && /\$\("analyst-source"\)\.addEventListener\("change", function \(\) \{\s*showSourceUrl\(\);\s*clearAnalysis\(\);/.test(analystClient), "tab and existing source clear the text and the result");
   assert(/function syncExtractedText\(\) \{\s*var field = \$\("analyst-text-field"\);\s*if \(field\) field\.hidden = tab === "clipboard";/.test(analystClient), "clipboard hides extracted text");
   assert(/function applyReasoningForModel\(modelId\) \{\s*setReasoning\(modelId === MINIMAX_MODEL\);/.test(analystClient), "only minimax turns reasoning on");
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
@@ -329,7 +337,8 @@ async function main() {
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
   assert(appClient.includes("mock.hidden = analyze || institution") && !analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "mock stays on stock and the selected view is info blue");
   assert(page.includes('aria-label="Help"') && page.includes('aria-label="Account"') && /id="account-menu"[\s\S]*id="who"/.test(page) && /id="info-button"[\s\S]*id="signout"/.test(page) && !page.includes(">Help<") && !page.includes(">Users<"), "the gear menu holds the email and help sits left of sign out");
-  assert(appClient.includes("function setAccountMenu") && appClient.includes('users-button").hidden = !state.admin'), "the gear menu toggles and allowed emails stays admin-only");
+  assert(appClient.includes("function setAccountMenu") && appClient.includes('users-button").hidden = !state.admin') && appClient.includes("state.admin = body.admin === true") && appClient.includes('action: "save-fetch"'), "the gear menu toggles, allowed emails stays admin-only, and fetch settings save for the signed-in user");
+  assert(page.includes('id="fetch-user-agent"') && page.includes('id="fetch-cookie"') && page.includes('id="analyst-source-url"') && analystClient.includes('textContent = "URL: " + url') && analystClient.includes('inputCell(tr, "date", row.date, "date")') && analystClient.includes('classList.add("is-waiting")') && analystCss.includes("body.is-waiting, body.is-waiting * { cursor: wait !important; }"), "fetch fields, source url, institution date, and wait cursor");
   const eventsSrc = fs.readFileSync(path.join(root, "api/events.js"), "utf8");
   assert(eventsSrc.includes("filled.sort") && appClient.includes("function byEventDate"), "event cards run oldest to newest");
   assert(page.includes('id="verdict-knob"') && analystCss.includes("linear-gradient(90deg, #e36a6a 0%, #e4b06a 50%, #3fbf8a 100%)") && appClient.includes('pair[0] + ": " + pair[1]'), "overall slider and vote counts");
@@ -386,7 +395,7 @@ async function main() {
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
-  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.") && prompt.includes("Short-term stock buy: NVDA (3), AAPL") && prompt.includes("A ticker mentioned once has no count.") && prompt.includes("strong short-term stock buy") && prompt.includes("strong short-term stock avoid") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
+  assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.\nAlways use ticker symbol when possible.") && prompt.includes("Short-term stock buy: NVDA (3), AAPL") && prompt.includes("A ticker mentioned once has no count.") && prompt.includes("strong short-term stock buy") && prompt.includes("strong short-term stock avoid") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");
   assert(Array.isArray(imageMessage) && imageMessage[1].type === "image_url" && imageMessage[1].image_url.url.indexOf("data:image/png") === 0, "image analysis message");
   const shown = priced.debugBody({
@@ -448,6 +457,10 @@ async function main() {
   assert(badImage === "bad_image", "image must be a data url");
   assert(fetched.websiteLabel('<meta property="og:site_name" content="Stock Circle">', "https://stockcircle.com/portfolio") === "Stock Circle", "site name");
   assert(fetched.websiteLabel("<html></html>", "https://www.stockcircle.com/x") === "stockcircle.com", "site name falls back to the host");
+  assert(fetched.websiteLabel('<meta property="og:site_name" content="">', "https://www.thestreet.com/story") === "thestreet.com", "empty site name is not quote marks");
+  const customHeaders = await fetched.runWithFetchIdentity({ userAgent: "Browser/1\nbad", cookie: "a=b" }, function () { return fetched.fetchHeaders(); });
+  const plainHeaders = fetched.fetchHeaders();
+  assert(customHeaders["User-Agent"] === "Browser/1 bad" && customHeaders.Cookie === "a=b" && plainHeaders["User-Agent"] === "stock_tracker/1.0 (analyst desk)" && !plainHeaders.Cookie, "fetch uses a saved identity only inside that request");
   const pricedRates = require("../lib/analyst-prices");
   const flash = pricedRates.perMillion("0.00000015", "0.0000006");
   assert(flash && flash.input === 0.15 && flash.output === 0.6 && flash.total === 0.75, "price per million tokens");
@@ -477,6 +490,8 @@ async function main() {
   assert(blankCosts.totalCost == null && blankCosts.inputCost == null && blankCosts.outputCost == null, "costs blank without a call");
 
   const analystDb = require("../lib/analyst-db");
+  await analystDb.rememberLabel("unused", '""');
+  await analystDb.rememberLabel("unused", '"');
   const analyst = require("../api/analyst");
   const savedDb = process.env.DATABASE_URL;
   const savedDirect = process.env.DATABASE_URL_UNPOOLED;

@@ -281,11 +281,13 @@
       return;
     }
     if (res.ok) {
-      state.admin = true;
-      state.email = body.me || state.email;
+      state.admin = body.admin === true;
+      state.email = body.me || body.email || state.email;
+      fillFetchSettings(body);
     } else if (body.allowed) {
       state.admin = false;
       state.email = body.email || state.email;
+      fillFetchSettings(body);
     } else {
       showScreen("screen-auth");
       showAuthError(body.error || "The desk could not be opened.");
@@ -945,6 +947,7 @@
       setAccountMenu(false);
       openAdmin();
     });
+    $("fetch-settings-save").addEventListener("click", saveFetchSettings);
     $("admin-back").addEventListener("click", function () { showScreen("screen-app"); syncChartSizes(); });
     $("admin-blocked-back").addEventListener("click", function () { showScreen("screen-app"); syncChartSizes(); });
     $("admin-form").addEventListener("submit", function (event) {
@@ -962,6 +965,34 @@
     $("mode-stock").addEventListener("click", function () { setMode("stock"); });
     $("mode-analyze").addEventListener("click", function () { setMode("analyze"); });
     $("mode-institution").addEventListener("click", function () { setMode("institution"); });
+  }
+
+  function fillFetchSettings(body) {
+    var agent = $("fetch-user-agent");
+    var cookie = $("fetch-cookie");
+    if (agent) agent.value = body && body.userAgent ? body.userAgent : "";
+    if (cookie) cookie.value = body && body.cookie ? body.cookie : "";
+  }
+
+  async function saveFetchSettings() {
+    var status = $("fetch-settings-status");
+    if (status) status.textContent = "";
+    var res = await api("/api/users", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "save-fetch",
+        userAgent: $("fetch-user-agent").value,
+        cookie: $("fetch-cookie").value,
+      }),
+    });
+    var body = {};
+    try { body = await res.json(); } catch (err) { body = {}; }
+    if (!res.ok) {
+      if (status) status.textContent = "The fetch settings were not saved.";
+      return;
+    }
+    fillFetchSettings(body);
+    if (status) status.textContent = "Saved.";
   }
 
   function setAccountMenu(open) {
