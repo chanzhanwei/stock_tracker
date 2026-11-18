@@ -244,7 +244,24 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 .sub-pane { display: flex; flex-direction: column; min-height: 0; flex: 0.75 1 0; }
 .sub-pane .chart-sub { flex: 1 1 auto; min-height: 120px; }
 .top-actions { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; }
-.who { color: var(--muted); font-size: 0.82rem; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
+.account { position: relative; }
+.account-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 8;
+  min-width: 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.account-menu .ghost { width: 100%; }
+.who { color: var(--muted); font-size: 0.82rem; margin: 0; overflow-wrap: anywhere; }
 
 .workspace {
   flex: 1;

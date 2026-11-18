@@ -928,9 +928,23 @@
       if (event.target === $("info-overlay")) $("info-overlay").hidden = true;
     });
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") $("info-overlay").hidden = true;
+      if (event.key === "Escape") {
+        $("info-overlay").hidden = true;
+        setAccountMenu(false);
+      }
     });
-    $("users-button").addEventListener("click", openAdmin);
+    $("account-button").addEventListener("click", function () {
+      setAccountMenu($("account-menu").hidden);
+    });
+    document.addEventListener("click", function (event) {
+      if ($("account-menu").hidden) return;
+      if (event.target.closest && event.target.closest(".account")) return;
+      setAccountMenu(false);
+    });
+    $("users-button").addEventListener("click", function () {
+      setAccountMenu(false);
+      openAdmin();
+    });
     $("admin-back").addEventListener("click", function () { showScreen("screen-app"); syncChartSizes(); });
     $("admin-blocked-back").addEventListener("click", function () { showScreen("screen-app"); syncChartSizes(); });
     $("admin-form").addEventListener("submit", function (event) {
@@ -948,6 +962,13 @@
     $("mode-stock").addEventListener("click", function () { setMode("stock"); });
     $("mode-analyze").addEventListener("click", function () { setMode("analyze"); });
     $("mode-institution").addEventListener("click", function () { setMode("institution"); });
+  }
+
+  function setAccountMenu(open) {
+    var menu = $("account-menu");
+    if (!menu) return;
+    menu.hidden = !open;
+    $("account-button").setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   function setMode(mode) {
