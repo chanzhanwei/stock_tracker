@@ -18,6 +18,7 @@
     toggles: {},
     customPeriod: 200,
     bars: [],
+    facts: null,
     events: [],
     institutional: null,
     source: "",
@@ -558,6 +559,49 @@
       changeEl.textContent = sign + formatPrice(change) + " (" + sign + changePct.toFixed(2) + "%)";
       changeEl.className = change > 0 ? "up" : change < 0 ? "down" : "flat";
     }
+    paintFacts();
+  }
+
+  function formatRatio(n) {
+    if (n == null || !isFinite(n) || n <= 0) return "—";
+    return n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  }
+
+  function paintFacts() {
+    var pe = $("quote-pe");
+    var high = $("quote-high");
+    var drop = $("quote-drawdown");
+    var facts = state.facts;
+    if (!state.bars.length || !facts) {
+      pe.hidden = true;
+      high.hidden = true;
+      drop.hidden = true;
+      pe.textContent = "";
+      high.textContent = "";
+      drop.textContent = "";
+      return;
+    }
+    pe.hidden = false;
+    pe.textContent = "PE " + formatRatio(facts.pe) + "     Forward PE " + formatRatio(facts.forwardPe);
+    if (facts.high == null || !isFinite(facts.high)) {
+      high.hidden = true;
+      drop.hidden = true;
+      high.textContent = "";
+      drop.textContent = "";
+      return;
+    }
+    high.hidden = false;
+    high.textContent = "High " + formatPrice(facts.high) + " on " + facts.highDate;
+    if (facts.declinePct == null || !isFinite(facts.declinePct)) {
+      drop.hidden = true;
+      drop.textContent = "";
+      return;
+    }
+    drop.hidden = false;
+    var visit = facts.lastVisit
+      ? "last at this price " + facts.lastVisit
+      : "has not traded here in the loaded history";
+    drop.textContent = facts.declinePct.toFixed(1) + "% below the high · " + visit;
   }
 
   function paintVerdict(result) {
@@ -838,6 +882,7 @@
         return;
       }
       state.bars = bodies[0].bars || [];
+      state.facts = bodies[0].facts || null;
       state.source = bodies[0].source || "";
       state.events = (bodies[1] && bodies[1].events) || [];
       state.eventsSource = (bodies[1] && bodies[1].source) || "";

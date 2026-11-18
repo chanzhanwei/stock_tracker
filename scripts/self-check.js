@@ -30,11 +30,22 @@ for (const file of files) {
   if (check.status !== 0) failures.push("syntax " + file + "\n" + check.stderr);
 }
 
+const quoteFacts = require("../lib/quote-facts");
 const symbols = require("../lib/symbols");
 const signals = require("../lib/signals");
 const mock = require("../lib/mock");
 const allowlist = require("../lib/allowlist");
 const config = require("../public/js/config");
+
+const sampleFacts = quoteFacts.priceFacts([
+  { time: "2024-01-02", high: 12, low: 9, close: 10 },
+  { time: "2024-03-01", high: 15, low: 11, close: 14 },
+  { time: "2024-06-01", high: 20, low: 16, close: 19 },
+  { time: "2024-12-01", high: 14, low: 10, close: 11 },
+]);
+assert(sampleFacts.high === 20 && sampleFacts.highDate === "2024-06-01", "quote high is the highest daily high");
+assert(Math.abs(sampleFacts.declinePct - 45) < 0.001 && sampleFacts.lastVisit === "2024-03-01", "quote decline uses an earlier session that traded the close");
+assert(quoteFacts.priceFacts([{ time: "2024-06-01", high: 20, low: 18, close: 20 }]).declinePct == null, "quote hides the decline when the close is the high");
 
 assert(symbols.calendarDaysForVisible(15) === 98, "1D calendar span");
 assert(symbols.calendarDaysForVisible(20) === 106, "1W calendar span");
@@ -243,6 +254,7 @@ async function main() {
     query: { exchange: "NASDAQ", symbol: "NOTREAL123", days: "40", mock: "1" },
   }, mocked);
   assert(mocked.statusCode === 200 && mocked.body.source === "mock" && mocked.body.bars.length > 5, "mock on still fabricates bars");
+  assert(mocked.body.facts && mocked.body.facts.pe == null && mocked.body.facts.forwardPe == null && mocked.body.facts.high > 0, "mock quote facts leave PE blank and keep the high");
 
   const events = require("../api/events");
   const quietEvents = mockRes();

@@ -340,6 +340,12 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
 }
 .quote { text-align: right; }
 #last-price { font-size: 1.6rem; display: block; }
+.quote-facts {
+  margin: 0.16rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
 .up { color: var(--buy); }
 .down { color: var(--sell); }
 .flat { color: var(--hold); }
