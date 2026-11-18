@@ -300,7 +300,7 @@ async function main() {
   const analystClient = fs.readFileSync(path.join(root, "public/js/analyst.js"), "utf8");
   const fetchSrc = fs.readFileSync(path.join(root, "lib/analyst-fetch.js"), "utf8");
   const dbSrc = fs.readFileSync(path.join(root, "lib/analyst-db.js"), "utf8");
-  assert(page.includes(">Analyze<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && !page.includes(">Analyst<") && !page.includes("ledger.js"), "stock, analyze, and institution switch");
+  assert(page.includes(">View:<") && page.includes(">Analyse<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && !page.includes(">Analyst<") && !page.includes(">Analyze<") && !page.includes("ledger.js"), "stock, analyse, and institution switch");
   assert(!page.includes("LEDGER-Technical") && !page.includes("docs/LEDGER"), "spec is not shown");
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
   assert(/EXISTS \(\s*SELECT 1 FROM analyst_items i WHERE i\.source_id = s\.id\s*\)/.test(dbSrc), "existing source lists only sources with a post");
@@ -327,6 +327,7 @@ async function main() {
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
+  assert(appClient.includes("mock.hidden = analyze || institution") && analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "view sits right of help in info blue and mock stays on stock");
   const eventsSrc = fs.readFileSync(path.join(root, "api/events.js"), "utf8");
   assert(eventsSrc.includes("filled.sort") && appClient.includes("function byEventDate"), "event cards run oldest to newest");
   assert(page.includes('id="verdict-knob"') && analystCss.includes("linear-gradient(90deg, #e36a6a 0%, #e4b06a 50%, #3fbf8a 100%)") && appClient.includes('pair[0] + ": " + pair[1]'), "overall slider and vote counts");

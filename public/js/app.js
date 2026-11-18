@@ -958,6 +958,8 @@
     $("analyst").hidden = !analyze;
     $("institution").hidden = !institution;
     $("mode-slider").dataset.mode = institution ? "institution" : analyze ? "analyze" : "stock";
+    var mock = document.querySelector(".mock-switch");
+    if (mock) mock.hidden = analyze || institution;
     $("mode-stock").setAttribute("aria-pressed", (!analyze && !institution) ? "true" : "false");
     $("mode-analyze").setAttribute("aria-pressed", analyze ? "true" : "false");
     $("mode-institution").setAttribute("aria-pressed", institution ? "true" : "false");

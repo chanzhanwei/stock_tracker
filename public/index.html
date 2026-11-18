@@ -96,14 +96,18 @@
         <input id="mock-toggle" type="checkbox" role="switch">
         <span>Mock data</span>
       </label>
-      <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
-        <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
-        <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
-        <button id="mode-analyze" type="button" aria-pressed="false">Analyze</button>
-        <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
-      </div>
       <div class="top-actions">
         <button id="info-button" type="button" class="ghost">Help</button>
+        <div id="mode-slider" class="view-switch" data-mode="stock" role="group" aria-label="View">
+          <span class="view-label">View:</span>
+          <div class="view-choices">
+            <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
+            <span class="view-pipe" aria-hidden="true">|</span>
+            <button id="mode-analyze" type="button" aria-pressed="false">Analyse</button>
+            <span class="view-pipe" aria-hidden="true">|</span>
+            <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
+          </div>
+        </div>
         <button id="users-button" type="button" class="ghost" hidden>Users</button>
         <span id="who" class="who"></span>
         <button id="signout" type="button" class="ghost">Sign out</button>
