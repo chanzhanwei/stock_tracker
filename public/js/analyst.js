@@ -300,9 +300,11 @@
   function showSourceUrl() {
     var select = $("analyst-source");
     var line = $("analyst-source-url");
-    if (!line) return;
+    var remove = $("analyst-remove-source");
     var option = select && select.selectedOptions && select.selectedOptions[0];
     var url = option && option.dataset.url ? option.dataset.url : "";
+    if (remove) remove.hidden = !admin || !select || !select.value;
+    if (!line) return;
     if (!select || !select.value || !url) {
       line.hidden = true;
       line.textContent = "";
@@ -349,6 +351,10 @@
     input.type = type || "text";
     input.dataset.field = name;
     input.value = value == null ? "" : String(value);
+    if (name === "note") {
+      td.className = "analyst-note-cell";
+      input.className = "note-input";
+    }
     td.appendChild(input);
     tr.appendChild(td);
   }
@@ -554,6 +560,28 @@
       return;
     }
     showExtractFailure(result.body.message || "Nothing was extracted.");
+  }
+
+  async function removeSelectedSource() {
+    var id = selectedSourceId();
+    if (!admin || !id) return;
+    if (!window.confirm("Remove this source?")) return;
+    document.body.classList.add("is-waiting");
+    try {
+      var result = await post({ action: "remove-source", sourceId: id });
+      if (!result.ok) {
+        setError(explain(result.body));
+        return;
+      }
+      if (current && current.sourceId === id) clearAnalysis();
+      renderSources(result.body.sources || []);
+      setError("");
+      setStatus("Source removed.");
+    } catch (err) {
+      setError("The source was not removed.");
+    } finally {
+      document.body.classList.remove("is-waiting");
+    }
   }
 
   async function extract() {
@@ -802,6 +830,7 @@
       applyReasoningForModel($("analyst-model").value);
     });
     $("analyst-extract").addEventListener("click", extract);
+    $("analyst-remove-source").addEventListener("click", removeSelectedSource);
     $("analyst-paste").addEventListener("click", pasteClipboard);
     $("analyst-run").addEventListener("click", runAnalyse);
     $("analyst-save").addEventListener("click", saveResult);

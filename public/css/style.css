@@ -182,6 +182,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   z-index: 5;
 }
 .topbar .brand { font-size: 1.25rem; margin-right: 0.3rem; }
+.stock-tools { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; min-width: 0; }
 .load-form { display: flex; gap: 0.4rem; }
 #ticker { width: 7.2rem; text-transform: uppercase; }
 .timeframes { display: flex; gap: 0.2rem; flex: none; flex-wrap: nowrap; }
@@ -208,6 +209,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  margin-right: 0.8rem;
 }
 .icon-button {
   display: inline-flex;
@@ -260,7 +262,8 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   border-radius: 10px;
   box-shadow: var(--shadow);
 }
-.account-menu .field { margin: 0.1rem 0; }
+.account-menu .field { margin: 0; }
+#fetch-settings-save { margin-bottom: 0.15rem; }
 .account-menu textarea {
   width: 100%;
   min-height: 4.2rem;
@@ -275,7 +278,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 .account-menu .fine { margin: 0; }
 .account-menu .ghost { width: 100%; }
 body.is-waiting, body.is-waiting * { cursor: wait !important; }
-.who { color: var(--muted); font-size: 0.82rem; margin: 0; overflow-wrap: anywhere; }
+.who { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.15rem; overflow-wrap: anywhere; }
 
 .workspace {
   flex: 1;
@@ -627,7 +630,7 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   accent-color: var(--copper);
 }
 .analyst-debug .field { margin: 0.7rem 0 0; }
-.analyst-note-cell { white-space: pre-wrap; min-width: 10rem; max-width: 18rem; }
+.analyst-note-cell { white-space: pre-wrap; min-width: 16rem; max-width: 36rem; font-size: 0.72rem; }
 .analyst textarea {
   width: 100%;
   min-height: 9rem;
@@ -640,7 +643,7 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   font: inherit;
   line-height: 1.45;
 }
-.analyst-url { display: inline-block; margin: 0.15rem 0 0.4rem; color: var(--info); word-break: break-all; }
+.analyst-url { display: inline-block; margin: 0.15rem 0 0.4rem; color: var(--muted); word-break: break-all; }
 .analyst-saved-wrap { margin-top: 1.4rem; }
 .analyst-table-scroll { overflow-x: auto; }
 .analyst-saved { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
@@ -651,6 +654,7 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   border-bottom: 1px solid var(--line);
 }
 .analyst-saved a { color: var(--info); word-break: break-all; }
+.analyst-saved input.note-input { width: 16rem; max-width: 36rem; font-size: 0.72rem; }
 .analyst-saved input {
   width: 8rem;
   max-width: 16rem;

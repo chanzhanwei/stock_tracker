@@ -16,6 +16,7 @@ const {
   saveClipboard,
   updateResult,
   deleteResult,
+  removeSource,
   rememberLabel,
   isProcessedUrl,
   openManual,
@@ -169,18 +170,28 @@ async function handle(req, res) {
     send(res, 200, await withIdentity(admin.email, function () { return fetchNext(body.sourceId); }));
     return;
   }
-  if (action === "open-url") {
-    const canonical = canonicalPostUrl(body && body.url);
-    if (await isProcessedUrl(canonical)) {
-      send(res, 200, {
-        item: null,
-        message: "That post is already analysed.",
-        sources: await listSources(),
-      });
+  if (action === "remove-source") {
+    if (!isUuid(body.sourceId)) {
+      send(res, 400, { error: "bad_request", message: "Choose a saved source." });
       return;
     }
-    const target = await withIdentity(admin.email, function () { return openTarget(body.url); });
+    send(res, 200, { sources: await removeSource(body.sourceId) });
+    return;
+  }
+  if (action === "open-url") {
     const mode = body.mode === "channel" || body.mode === "page" ? body.mode : "";
+    if (mode !== "channel") {
+      const canonical = canonicalPostUrl(body && body.url);
+      if (await isProcessedUrl(canonical)) {
+        send(res, 200, {
+          item: null,
+          message: "That post is already analysed.",
+          sources: await listSources(),
+        });
+        return;
+      }
+    }
+    const target = await withIdentity(admin.email, function () { return openTarget(body.url, { mode: mode }); });
     send(res, 200, await openManual(target, admin.email, mode));
     return;
   }

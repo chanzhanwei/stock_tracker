@@ -335,7 +335,11 @@ async function main() {
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
-  assert(appClient.includes("mock.hidden = analyze || institution") && !analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "mock stays on stock and the selected view is info blue");
+  assert(appClient.includes("mock.hidden = analyze || institution") && appClient.includes('$("stock-tools")') && appClient.includes("tools.hidden = analyze || institution") && page.includes('id="stock-tools"') && !analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "mock stays on stock and the selected view is info blue");
+  assert(page.includes("<h1>Authorised emails</h1>") && page.includes(">Authorised emails<") && !page.includes("Allowed emails"), "authorised emails");
+  assert(analystCss.includes(".analyst-note-cell { white-space: pre-wrap; min-width: 16rem; max-width: 36rem; font-size: 0.72rem; }") && analystCss.includes(".analyst-saved input.note-input") && analystClient.includes('input.className = "note-input"'), "notes column is wider and smaller");
+  assert(analystCss.includes("color: var(--muted); word-break: break-all;") && page.includes('id="analyst-remove-source"') && analystClient.includes('action: "remove-source"') && analystClient.includes("Remove this source?"), "source url is grey and an admin can remove it");
+  assert(analystCss.includes(".view-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.45rem;\n  margin-right: 0.8rem;\n}") && analystCss.includes(".who { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.15rem; overflow-wrap: anywhere; }") && analystCss.includes("#fetch-settings-save { margin-bottom: 0.15rem; }"), "view and account spacing");
   assert(page.includes('aria-label="Help"') && page.includes('aria-label="Account"') && /id="account-menu"[\s\S]*id="who"/.test(page) && /id="info-button"[\s\S]*id="signout"/.test(page) && !page.includes(">Help<") && !page.includes(">Users<"), "the gear menu holds the email and help sits left of sign out");
   assert(appClient.includes("function setAccountMenu") && appClient.includes('users-button").hidden = !state.admin') && appClient.includes("state.admin = body.admin === true") && appClient.includes('action: "save-fetch"'), "the gear menu toggles, allowed emails stays admin-only, and fetch settings save for the signed-in user");
   assert(page.includes('id="fetch-user-agent"') && page.includes('id="fetch-cookie"') && page.includes('id="analyst-source-url"') && analystClient.includes('textContent = "URL: " + url') && analystClient.includes('inputCell(tr, "date", row.date, "date")') && analystClient.includes('classList.add("is-waiting")') && analystCss.includes("body.is-waiting, body.is-waiting * { cursor: wait !important; }"), "fetch fields, source url, institution date, and wait cursor");
@@ -458,6 +462,12 @@ async function main() {
   assert(fetched.websiteLabel('<meta property="og:site_name" content="Stock Circle">', "https://stockcircle.com/portfolio") === "Stock Circle", "site name");
   assert(fetched.websiteLabel("<html></html>", "https://www.stockcircle.com/x") === "stockcircle.com", "site name falls back to the host");
   assert(fetched.websiteLabel('<meta property="og:site_name" content="">', "https://www.thestreet.com/story") === "thestreet.com", "empty site name is not quote marks");
+  assert(fetched.channelLabel('<meta property="og:site_name" content="TheStreet">', "https://www.thestreet.com/investing") === "TheStreet-Investing", "channel name uses the site and the directory");
+  assert(fetched.channelLabel("<title>Investing News | TheStreet</title>", "https://www.thestreet.com/investing") === "TheStreet-Investing", "channel name can come from the title");
+  assert(fetched.channelLabel("<html></html>", "https://www.thestreet.com") === "Thestreet", "a site root has no section suffix");
+  assert(fetched.articleInDirectory("https://www.thestreet.com/investing", "https://thestreet.com/investing/bill-ackman-sells-microsoft") === true, "an article under the channel directory counts");
+  assert(fetched.articleInDirectory("https://www.thestreet.com/investing/", "https://www.thestreet.com/markets/some-other-story") === false, "another section is not the channel directory");
+  assert(fetched.articleInDirectory("https://www.thestreet.com/investing", "https://www.thestreet.com/investing") === false, "the channel index is not an article");
   const customHeaders = await fetched.runWithFetchIdentity({ userAgent: "Browser/1\nbad", cookie: "a=b" }, function () { return fetched.fetchHeaders(); });
   const plainHeaders = fetched.fetchHeaders();
   assert(customHeaders["User-Agent"] === "Browser/1 bad" && customHeaders.Cookie === "a=b" && plainHeaders["User-Agent"] === "stock_tracker/1.0 (analyst desk)" && !plainHeaders.Cookie, "fetch uses a saved identity only inside that request");
@@ -530,6 +540,13 @@ async function main() {
     body: { action: "add-source", name: "@example", kind: "x" },
   }, readerWrite);
   assert(readerWrite.statusCode === 403 && readerWrite.body.error === "admin_only", "reader cannot add a source");
+  const readerRemove = mockRes();
+  await analyst({
+    method: "POST",
+    headers: { host: "localhost", "x-dev-email": outsider },
+    body: { action: "remove-source", sourceId: "00000000-0000-4000-8000-000000000000" },
+  }, readerRemove);
+  assert(readerRemove.statusCode === 403 && readerRemove.body.error === "admin_only", "reader cannot remove a source");
   const readerDesk = mockRes();
   await analyst({
     method: "GET",
@@ -722,12 +739,67 @@ async function main() {
         method: "GET",
         headers: { host: "localhost", "x-dev-email": outsider },
       }, readerRows);
-      assert(readerRows.statusCode === 200 && readerRows.body.results.some((row) => row.postUrl === "https://example.com/newer" && row.source === feedUrl && row.analystName === "Ada" && row.shortTermStock === "NVDA" && row.shortTermAvoid === "TSLA") && readerRows.body.results.some((row) => row.postUrl === manualUrl && row.analystName === "Bea"), "reader sees the saved rows");
+      assert(readerRows.statusCode === 200 && readerRows.body.results.some((row) => row.postUrl === "https://example.com/newer" && row.source === "127.0.0.1" && row.analystName === "Ada" && row.shortTermStock === "NVDA" && row.shortTermAvoid === "TSLA") && readerRows.body.results.some((row) => row.postUrl === manualUrl && row.analystName === "Bea"), "reader sees the saved rows");
       await users({
         method: "POST",
         headers: { host: "localhost" },
         body: { action: "remove", email: outsider },
       }, mockRes());
+      const channelServer = http.createServer((req, res) => {
+        const path = req.url.split("?")[0];
+        const article = "<html><head><title>Ackman</title></head><body><article>Bill Ackman sold Microsoft and bought Netflix in the latest filing.</article></body></html>";
+        const pages = {
+          "/investing": "<html><head><title>Investing</title><meta property=\"og:site_name\" content=\"TheStreet\"></head><body><a href=\"/markets/some-other-market-story\">Markets</a><a href=\"/investing/bill-ackman-sells-microsoft\">Lead</a></body></html>",
+          "/investing/bill-ackman-sells-microsoft": article,
+          "/markets/some-other-market-story": "<html><body><article>This markets story is outside the investing directory and must not be extracted.</article></body></html>",
+          "/section": "<html><head><meta property=\"og:site_name\" content=\"TheStreet\"></head><body><a href=\"/markets/some-other-market-story\">Markets</a><a href=\"/section/desk\">Desk</a></body></html>",
+          "/section/desk": "<html><body><a href=\"/section/one-extracted-article\">Story</a></body></html>",
+          "/section/one-extracted-article": "<html><body><article>The traversed section article names one holding and explains the trade.</article></body></html>",
+          "/empty": "<html><head><meta property=\"og:site_name\" content=\"TheStreet\"></head><body><a href=\"/markets/some-other-market-story\">Elsewhere</a></body></html>",
+        };
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(pages[path] || "<html><body>Missing</body></html>");
+      });
+      await new Promise((resolve) => channelServer.listen(0, "127.0.0.1", resolve));
+      const channelBase = "http://127.0.0.1:" + channelServer.address().port;
+      try {
+        const channel = mockRes();
+        await analyst({
+          method: "POST",
+          headers: { host: "localhost" },
+          body: { action: "open-url", url: channelBase + "/investing", mode: "channel" },
+        }, channel);
+        const channelSource = (channel.body.sources || []).find((source) => source.name === channelBase + "/investing");
+        assert(channel.statusCode === 200 && channel.body.item && channel.body.item.url === channelBase + "/investing/bill-ackman-sells-microsoft" && channel.body.item.text.indexOf("bought Netflix") !== -1 && channel.body.item.text.indexOf("outside the investing directory") === -1 && channelSource && channelSource.displayName === "TheStreet-Investing", "channel extract keeps one same-directory article and names the source");
+        const traversed = mockRes();
+        await analyst({
+          method: "POST",
+          headers: { host: "localhost" },
+          body: { action: "open-url", url: channelBase + "/section", mode: "channel" },
+        }, traversed);
+        assert(traversed.statusCode === 200 && traversed.body.item && traversed.body.item.url === channelBase + "/section/one-extracted-article" && traversed.body.item.text.indexOf("traversed section article") !== -1, "channel extract follows one page inside the directory");
+        const beforeEmpty = (traversed.body.sources || []).length;
+        const empty = mockRes();
+        await analyst({
+          method: "POST",
+          headers: { host: "localhost" },
+          body: { action: "open-url", url: channelBase + "/empty", mode: "channel" },
+        }, empty);
+        const afterEmpty = mockRes();
+        await analyst({ method: "GET", headers: { host: "localhost" } }, afterEmpty);
+        assert(empty.statusCode === 200 && empty.body.error === "no_items" && !(afterEmpty.body.sources || []).some((source) => source.name === channelBase + "/empty") && (afterEmpty.body.sources || []).length === beforeEmpty, "a channel with no article is not saved");
+        const removed = mockRes();
+        if (channelSource) {
+          await analyst({
+            method: "POST",
+            headers: { host: "localhost" },
+            body: { action: "remove-source", sourceId: channelSource.id },
+          }, removed);
+        }
+        assert(channelSource && removed.statusCode === 200 && !(removed.body.sources || []).some((source) => source.id === channelSource.id), "remove drops the channel and its article");
+      } finally {
+        await new Promise((resolve) => channelServer.close(resolve));
+      }
     } finally {
       await new Promise((resolve) => feedServer.close(resolve));
     }

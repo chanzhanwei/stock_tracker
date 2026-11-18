@@ -62,7 +62,7 @@
   <section id="screen-admin" class="screen" hidden>
     <div class="card wide">
       <p class="brand">stock_tracker</p>
-      <h1>Allowed emails</h1>
+      <h1>Authorised emails</h1>
       <div id="admin-blocked" hidden>
         <p id="admin-blocked-text">You cannot open the user screen.</p>
         <button id="admin-blocked-back" type="button">Back to the dashboard</button>
@@ -83,19 +83,21 @@
   <section id="screen-app" class="screen" hidden>
     <header class="topbar">
       <div class="brand">stock_tracker</div>
-      <label class="select-wrap">
-        <span class="sr">Exchange</span>
-        <select id="exchange"></select>
-      </label>
-      <form id="load-form" class="load-form">
-        <input id="ticker" maxlength="10" autocomplete="off" spellcheck="false" aria-label="Ticker">
-        <button type="submit">Load</button>
-      </form>
-      <div id="timeframes" class="timeframes" role="group" aria-label="Timeframe"></div>
-      <label class="mock-switch">
-        <input id="mock-toggle" type="checkbox" role="switch">
-        <span>Mock data</span>
-      </label>
+      <div id="stock-tools" class="stock-tools">
+        <label class="select-wrap">
+          <span class="sr">Exchange</span>
+          <select id="exchange"></select>
+        </label>
+        <form id="load-form" class="load-form">
+          <input id="ticker" maxlength="10" autocomplete="off" spellcheck="false" aria-label="Ticker">
+          <button type="submit">Load</button>
+        </form>
+        <div id="timeframes" class="timeframes" role="group" aria-label="Timeframe"></div>
+        <label class="mock-switch">
+          <input id="mock-toggle" type="checkbox" role="switch">
+          <span>Mock data</span>
+        </label>
+      </div>
       <div class="top-actions">
         <div id="mode-slider" class="view-switch" data-mode="stock" role="group" aria-label="View">
           <span class="view-label">View:</span>
@@ -126,7 +128,7 @@
             </label>
             <p id="fetch-settings-status" class="fine" role="status"></p>
             <button id="fetch-settings-save" type="button">Save</button>
-            <button id="users-button" type="button" class="ghost" hidden>Allowed emails</button>
+            <button id="users-button" type="button" class="ghost" hidden>Authorised emails</button>
           </div>
         </div>
         <button id="info-button" type="button" class="ghost icon-button" aria-label="Help">
@@ -235,6 +237,7 @@
               <select id="analyst-source"></select>
             </label>
             <p id="analyst-source-url" class="analyst-url" hidden></p>
+            <button id="analyst-remove-source" type="button" class="ghost" hidden>Remove</button>
           </div>
           <p id="analyst-transcript" class="analyst-transcript" hidden><span id="analyst-transcript-label">Extract transcript from: </span><a id="analyst-transcript-url" target="_blank" rel="noopener"></a></p>
           <div class="row analyst-extract">

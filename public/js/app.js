@@ -1010,6 +1010,8 @@
     $("analyst").hidden = !analyze;
     $("institution").hidden = !institution;
     $("mode-slider").dataset.mode = institution ? "institution" : analyze ? "analyze" : "stock";
+    var tools = $("stock-tools");
+    if (tools) tools.hidden = analyze || institution;
     var mock = document.querySelector(".mock-switch");
     if (mock) mock.hidden = analyze || institution;
     $("mode-stock").setAttribute("aria-pressed", (!analyze && !institution) ? "true" : "false");
