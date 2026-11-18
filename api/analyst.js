@@ -9,6 +9,7 @@ const {
   listSources,
   listResults,
   addSource,
+  removeSource,
   getSource,
   takeNext,
   saveResult,
@@ -54,7 +55,16 @@ function sendMapped(res, err) {
   const message = STATUS[code]
     ? (err.message || "The Analyze desk could not complete that step.")
     : "The Analyze desk could not complete that step.";
-  send(res, status, { error: STATUS[code] ? code : "internal", message: message });
+  const payload = { error: STATUS[code] ? code : "internal", message: message };
+  if (err && err.debug) payload.debug = err.debug;
+  send(res, status, payload);
+}
+
+function fetchOptions(body) {
+  return {
+    userAgent: body && body.userAgent,
+    cookie: body && body.cookie,
+  };
 }
 
 function deskPayload(admin, extra) {
@@ -76,7 +86,7 @@ async function readDesk(user) {
   return deskPayload(user.admin, { sources: sources, results: results, message: "" });
 }
 
-async function fetchNext(sourceId) {
+async function fetchNext(sourceId, options) {
   const source = await getSource(sourceId);
   if (!source) {
     const err = new Error("That source is not saved.");
@@ -85,17 +95,24 @@ async function fetchNext(sourceId) {
   }
   let discovered = null;
   let warning = "";
+  let debug = null;
   try {
-    discovered = await discover(source);
+    const found = await discover(source, options);
+    discovered = found && found.items;
+    debug = found && found.debug;
   } catch (err) {
     warning = err && err.code && err.message ? err.message : "The source could not be fetched.";
+    debug = err && err.debug;
   }
   try {
-    return await takeNext(source, discovered, warning);
+    const payload = await takeNext(source, discovered, warning);
+    payload.debug = debug || null;
+    return payload;
   } catch (err) {
     if (err && err.code === "no_items") {
-      return { item: null, message: err.message };
+      return { item: null, message: err.message, debug: debug || null };
     }
+    if (debug && err && !err.debug) err.debug = debug;
     throw err;
   }
 }
@@ -128,15 +145,42 @@ async function handle(req, res) {
     send(res, 200, { source: source, sources: sources });
     return;
   }
+  if (action === "remove-source") {
+    if (!isUuid(body.sourceId)) {
+      send(res, 400, { error: "bad_request", message: "Choose a saved source." });
+      return;
+    }
+    await removeSource(body.sourceId);
+    send(res, 200, { sources: await listSources() });
+    return;
+  }
   if (action === "fetch") {
     if (!isUuid(body.sourceId)) {
       send(res, 400, { error: "bad_request", message: "Choose a saved source." });
       return;
     }
-    send(res, 200, await fetchNext(body.sourceId));
+    send(res, 200, await fetchNext(body.sourceId, fetchOptions(body)));
     return;
   }
   if (action === "open-url") {
+    if (!configured()) {
+      const target = await openTarget(body.url, fetchOptions(body));
+      const first = (target.items || [])[0] || null;
+      send(res, 200, {
+        item: first ? {
+          id: "",
+          url: first.url,
+          title: first.title || "",
+          text: target.kind === "youtube" ? ((first.title ? first.title + "\n\n" : "")) : (first.body || ""),
+          kind: target.kind,
+          pasteTranscript: target.kind === "youtube",
+        } : null,
+        message: DATABASE_MESSAGE,
+        sources: [],
+        debug: target.debug || null,
+      });
+      return;
+    }
     const canonical = canonicalPostUrl(body && body.url);
     if (await isProcessedUrl(canonical)) {
       send(res, 200, {
@@ -146,12 +190,14 @@ async function handle(req, res) {
       });
       return;
     }
-    const target = await openTarget(body.url);
-    send(res, 200, await openManual(target, admin.email));
+    const target = await openTarget(body.url, fetchOptions(body));
+    const opened = await openManual(target, admin.email);
+    opened.debug = target.debug || null;
+    send(res, 200, opened);
     return;
   }
   if (action === "analyse") {
-    send(res, 200, await analyse(body.model, body.text));
+    send(res, 200, await analyse(body.model, body.text, body.reasoning));
     return;
   }
   if (action === "save") {

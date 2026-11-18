@@ -9,6 +9,8 @@
   var defaultModel = "";
   var current = null;
   var lastRun = null;
+  var selectedId = "";
+  var sourceRows = [];
 
   function $(id) { return document.getElementById(id); }
 
@@ -51,15 +53,24 @@
   }
 
   function selectedSourceId() {
-    var select = $("analyst-source");
-    return select ? select.value : "";
+    return selectedId || "";
   }
 
   function selectedKind() {
-    var select = $("analyst-source");
-    if (!select || select.selectedIndex < 0) return "";
-    var option = select.options[select.selectedIndex];
-    return option ? (option.dataset.kind || "") : "";
+    var match = sourceRows.filter(function (source) { return source.id === selectedId; })[0];
+    return match ? match.kind : "";
+  }
+
+  function fetchFields() {
+    var settings = window.STSettings ? window.STSettings.read() : {};
+    return {
+      userAgent: settings.userAgent || "",
+      cookie: settings.cookie || "",
+    };
+  }
+
+  function noteDebug(body) {
+    if (window.STSettings && body && body.debug) window.STSettings.showDebug(body.debug);
   }
 
   function kindLabel(kind) {
@@ -95,21 +106,51 @@
   }
 
   function renderSources(sources, preferId) {
-    var select = $("analyst-source");
-    if (!select) return;
-    var selected = preferId || select.value;
-    select.textContent = "";
-    var empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = sources && sources.length ? "Choose a source" : "No saved sources";
-    select.appendChild(empty);
-    (sources || []).forEach(function (source) {
-      var option = document.createElement("option");
-      option.value = source.id;
-      option.dataset.kind = source.kind;
-      option.textContent = source.name + " — " + kindLabel(source.kind);
-      if (source.id === selected) option.selected = true;
-      select.appendChild(option);
+    var list = $("analyst-sources");
+    if (!list) return;
+    sourceRows = sources || [];
+    selectedId = preferId || selectedId;
+    if (!sourceRows.some(function (source) { return source.id === selectedId; })) {
+      selectedId = sourceRows.length ? sourceRows[0].id : "";
+    }
+    list.textContent = "";
+    if (!sourceRows.length) {
+      var empty = document.createElement("li");
+      empty.className = "source-empty";
+      empty.textContent = "No saved sources";
+      list.appendChild(empty);
+      syncPlaceholder();
+      return;
+    }
+    sourceRows.forEach(function (source) {
+      var item = document.createElement("li");
+      item.className = "source-row";
+      item.setAttribute("role", "button");
+      item.setAttribute("aria-pressed", source.id === selectedId ? "true" : "false");
+      var text = document.createElement("div");
+      var name = document.createElement("div");
+      name.className = "source-name";
+      name.textContent = kindLabel(source.kind);
+      var url = document.createElement("div");
+      url.className = "source-url";
+      url.textContent = source.name || "";
+      text.appendChild(name);
+      text.appendChild(url);
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "ghost";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", function (event) {
+        event.stopPropagation();
+        removeSource(source.id);
+      });
+      item.addEventListener("click", function () {
+        selectedId = source.id;
+        renderSources(sourceRows, source.id);
+      });
+      item.appendChild(text);
+      item.appendChild(remove);
+      list.appendChild(item);
     });
     syncPlaceholder();
   }
@@ -173,10 +214,7 @@
       lastRun = null;
     }
     if (title) title.textContent = item.title || "";
-    if (item.sourceId) {
-      var select = $("analyst-source");
-      if (select) select.value = item.sourceId;
-    }
+    if (item.sourceId) selectedId = item.sourceId;
     if (link) {
       link.hidden = !item.url;
       link.href = item.url || "";
@@ -253,7 +291,8 @@
     var button = $("analyst-fetch");
     button.disabled = true;
     try {
-      var result = await post({ action: "fetch", sourceId: selectedSourceId() });
+      var result = await post(Object.assign({ action: "fetch", sourceId: selectedSourceId() }, fetchFields()));
+      noteDebug(result.body);
       if (!result.ok) {
         setError(explain(result.body));
         return;
@@ -282,7 +321,12 @@
     setStatus("Analysing.");
     try {
       var model = $("analyst-model").value;
-      var result = await post({ action: "analyse", model: model, text: $("analyst-text").value });
+      var result = await post({
+        action: "analyse",
+        model: model,
+        text: $("analyst-text").value,
+        reasoning: window.STSettings ? window.STSettings.effort() : "off",
+      });
       if (!result.ok) {
         setStatus("");
         setError(explain(result.body));
@@ -361,7 +405,8 @@
     var button = $("analyst-open-url");
     button.disabled = true;
     try {
-      var result = await post({ action: "open-url", url: url });
+      var result = await post(Object.assign({ action: "open-url", url: url }, fetchFields()));
+      noteDebug(result.body);
       if (!result.ok) {
         setError(explain(result.body));
         return;
@@ -384,13 +429,29 @@
     }
   }
 
+  async function removeSource(id) {
+    setError("");
+    setStatus("");
+    try {
+      var result = await post({ action: "remove-source", sourceId: id });
+      if (!result.ok) {
+        setError(explain(result.body));
+        return;
+      }
+      if (selectedId === id) selectedId = "";
+      renderSources(result.body.sources || []);
+      setStatus("Source removed.");
+    } catch (err) {
+      setError("The source was not removed.");
+    }
+  }
+
   function wire() {
     $("analyst-add").addEventListener("submit", addSource);
     $("analyst-url-form").addEventListener("submit", openUrl);
     $("analyst-fetch").addEventListener("click", fetchNext);
     $("analyst-run").addEventListener("click", runAnalyse);
     $("analyst-save").addEventListener("click", saveResult);
-    $("analyst-source").addEventListener("change", syncPlaceholder);
     wired = true;
   }
 

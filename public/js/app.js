@@ -292,7 +292,9 @@
       return;
     }
     $("who").textContent = state.email;
+    if ($("gear-email")) $("gear-email").textContent = state.email;
     $("users-button").hidden = !state.admin;
+    if ($("gear-authorised")) $("gear-authorised").hidden = !state.admin;
     showScreen("screen-app");
     ensureCharts();
     syncChartSizes();
@@ -957,6 +959,56 @@
     $("mode-stock").addEventListener("click", function () { setMode("stock"); });
     $("mode-analyze").addEventListener("click", function () { setMode("analyze"); });
     $("mode-institution").addEventListener("click", function () { setMode("institution"); });
+    $("gear-button").addEventListener("click", function (event) {
+      event.stopPropagation();
+      toggleGear();
+    });
+    $("gear-save").addEventListener("click", saveGear);
+    $("gear-authorised").addEventListener("click", function () {
+      closeGear();
+      openAdmin();
+    });
+    $("gear-reasoning").addEventListener("input", function () {
+      $("gear-reasoning-readout").textContent = STSettings.labels[Number($("gear-reasoning").value)] || "Off";
+    });
+    document.addEventListener("click", function (event) {
+      var panel = $("gear-panel");
+      var wrap = document.querySelector(".gear-wrap");
+      if (!panel || panel.hidden) return;
+      if (wrap && wrap.contains(event.target)) return;
+      closeGear();
+    });
+    fillGear();
+  }
+
+  function fillGear() {
+    var settings = STSettings.read();
+    $("gear-ua").value = settings.userAgent;
+    $("gear-cookie").value = settings.cookie;
+    $("gear-reasoning").value = String(settings.reasoning);
+    $("gear-reasoning-readout").textContent = STSettings.labels[settings.reasoning] || "Off";
+    if ($("gear-email")) $("gear-email").textContent = state.email || "";
+  }
+
+  function closeGear() {
+    $("gear-panel").hidden = true;
+    $("gear-button").setAttribute("aria-expanded", "false");
+  }
+
+  function toggleGear() {
+    var open = $("gear-panel").hidden;
+    if (open) fillGear();
+    $("gear-panel").hidden = !open;
+    $("gear-button").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function saveGear() {
+    STSettings.write({
+      userAgent: $("gear-ua").value,
+      cookie: $("gear-cookie").value,
+      reasoning: Number($("gear-reasoning").value),
+    });
+    $("gear-status").textContent = "Saved.";
   }
 
   function setMode(mode) {
@@ -966,6 +1018,7 @@
     $("desk").hidden = analyze || institution;
     $("analyst").hidden = !analyze;
     $("institution").hidden = !institution;
+    $("stock-tools").hidden = analyze || institution;
     $("mode-slider").dataset.mode = institution ? "institution" : analyze ? "analyze" : "stock";
     $("mode-stock").setAttribute("aria-pressed", (!analyze && !institution) ? "true" : "false");
     $("mode-analyze").setAttribute("aria-pressed", analyze ? "true" : "false");
@@ -1042,6 +1095,70 @@
       $("boot-status").textContent = clerkMessage(err);
     }
   }
+
+  var SETTINGS_KEY = "stock_tracker.fetchSettings";
+  var DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  var REASONING_LABELS = ["Off", "Low", "Medium", "High"];
+  var REASONING_EFFORT = ["off", "low", "medium", "high"];
+
+  function readSettings() {
+    var raw = {};
+    try { raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); } catch (err) { raw = {}; }
+    var reasoning = Number(raw.reasoning);
+    if (!isFinite(reasoning) || reasoning < 0 || reasoning > 3) reasoning = 0;
+    return {
+      userAgent: String(raw.userAgent || DEFAULT_USER_AGENT),
+      cookie: String(raw.cookie || ""),
+      reasoning: reasoning,
+    };
+  }
+
+  function writeSettings(settings) {
+    var reasoning = Number(settings.reasoning);
+    if (!isFinite(reasoning) || reasoning < 0 || reasoning > 3) reasoning = 0;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      userAgent: String(settings.userAgent || "").trim() || DEFAULT_USER_AGENT,
+      cookie: String(settings.cookie || ""),
+      reasoning: reasoning,
+    }));
+  }
+
+  function formatDebug(debug) {
+    if (!debug || !debug.request) {
+      return { request: "No request yet.", response: "No response yet." };
+    }
+    var headers = debug.request.headers || {};
+    var names = Object.keys(headers);
+    var request = debug.request.method + " " + debug.request.url;
+    names.forEach(function (name) { request += "\n" + name + ": " + headers[name]; });
+    var responseHeaders = (debug.response && debug.response.headers) || {};
+    var response = String(debug.response && debug.response.status != null ? debug.response.status : "");
+    Object.keys(responseHeaders).forEach(function (name) {
+      response += "\n" + name + ": " + responseHeaders[name];
+    });
+    response += "\n\n" + ((debug.response && debug.response.body) || "");
+    return { request: request, response: response };
+  }
+
+  window.STSettings = {
+    read: readSettings,
+    write: writeSettings,
+    labels: REASONING_LABELS,
+    effort: function () { return REASONING_EFFORT[readSettings().reasoning] || "off"; },
+    showDebug: function (debug) {
+      var text = formatDebug(debug);
+      var request = $("debug-request");
+      var response = $("debug-response");
+      if (request) request.textContent = text.request;
+      if (response) response.textContent = text.response;
+      var panel = $("gear-panel");
+      if (panel && panel.hidden) {
+        panel.hidden = false;
+        $("gear-button").setAttribute("aria-expanded", "true");
+        fillGear();
+      }
+    },
+  };
 
   window.syncChartSizes = syncChartSizes;
   boot();

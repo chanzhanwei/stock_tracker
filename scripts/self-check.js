@@ -294,7 +294,7 @@ async function main() {
   const page = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
   const analystClient = fs.readFileSync(path.join(root, "public/js/analyst.js"), "utf8");
   const fetchSrc = fs.readFileSync(path.join(root, "lib/analyst-fetch.js"), "utf8");
-  assert(page.includes(">Analyze<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && !page.includes(">Analyst<") && !page.includes("ledger.js"), "stock, analyze, and institution switch");
+  assert(page.includes(">Analyse<") && page.includes(">Institution<") && page.includes('id="mode-stock"') && page.includes('id="mode-institution"') && page.includes("Existing Sources") && page.includes("Authorised emails") && page.includes('id="gear-reasoning"') && !page.includes(">Analyst<") && !page.includes("ledger.js"), "stock, analyse, and institution switch");
   assert(!page.includes("LEDGER-Technical") && !page.includes("docs/LEDGER"), "spec is not shown");
   assert(!/timedtext|captionTracks|get_transcript/i.test(fetchSrc), "captions are not requested");
   assert(!/OPENROUTER_API_KEY|sk-or-|Bearer /.test(page + analystClient), "openrouter key stays off the client");
@@ -337,6 +337,27 @@ async function main() {
   assert(costs.totalCost === 0.00015 && costs.inputCost === 0.00005 && costs.outputCost === 0.0001, "openrouter costs");
   const blankCosts = priced.costsFromUsage({});
   assert(blankCosts.totalCost == null && blankCosts.inputCost == null && blankCosts.outputCost == null, "costs blank without a call");
+  assert(priced.withReasoning({ model: "m" }, "high").reasoning.effort === "high", "reasoning effort is sent");
+  assert(!priced.withReasoning({ model: "m" }, "off").reasoning, "reasoning off is omitted");
+  const sent = fetched.fetchHeaders({ userAgent: "DeskTest/9", cookie: "session=abc" });
+  assert(sent["User-Agent"] === "DeskTest/9" && sent.Cookie === "session=abc", "fetch headers keep user agent and cookie");
+  const bareHeaders = fetched.fetchHeaders({ userAgent: "", cookie: "" });
+  assert(bareHeaders["User-Agent"] === fetched.DEFAULT_USER_AGENT && !bareHeaders.Cookie, "empty cookie is omitted");
+  const headerProbe = http.createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ua=" + (req.headers["user-agent"] || "") + ";cookie=" + (req.headers.cookie || ""));
+  });
+  await new Promise((resolve) => headerProbe.listen(0, "127.0.0.1", resolve));
+  try {
+    const probeUrl = "http://127.0.0.1:" + headerProbe.address().port + "/page";
+    const got = await fetched.fetchText(probeUrl, 1000, { userAgent: "DeskTest/9", cookie: "session=abc" });
+    assert(got.text === "ua=DeskTest/9;cookie=session=abc", "outbound request uses user agent and cookie");
+    assert(got.debug.request.headers["User-Agent"] === "DeskTest/9" && got.debug.request.headers.Cookie === "session=abc" && got.debug.response.status === 200 && got.debug.response.body.indexOf("DeskTest/9") !== -1, "debug shows the request and response");
+    const bare = await fetched.fetchText(probeUrl, 1000, { userAgent: " ", cookie: " " });
+    assert(bare.debug.request.headers.Cookie === "(none)" && bare.text.indexOf("cookie=") !== -1 && bare.text.endsWith("cookie="), "debug names a missing cookie");
+  } finally {
+    await new Promise((resolve) => headerProbe.close(resolve));
+  }
 
   const analystDb = require("../lib/analyst-db");
   const analyst = require("../api/analyst");
@@ -352,6 +373,27 @@ async function main() {
   const desk = mockRes();
   await analyst({ method: "GET", headers: { host: "localhost" } }, desk);
   assert(desk.statusCode === 200 && desk.body.database === false && desk.body.message.indexOf("DATABASE_URL") !== -1, "analyst names the missing database");
+  const offlinePage = http.createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end("<html><head><title>Probe</title></head><body><article><p>ua=" + (req.headers["user-agent"] || "") + ";cookie=" + (req.headers.cookie || "") + "</p></article></body></html>");
+  });
+  await new Promise((resolve) => offlinePage.listen(0, "127.0.0.1", resolve));
+  try {
+    const offlineOpen = mockRes();
+    await analyst({
+      method: "POST",
+      headers: { host: "localhost" },
+      body: {
+        action: "open-url",
+        url: "http://127.0.0.1:" + offlinePage.address().port + "/page",
+        userAgent: "DeskTest/9",
+        cookie: "session=abc",
+      },
+    }, offlineOpen);
+    assert(offlineOpen.statusCode === 200 && offlineOpen.body.debug && offlineOpen.body.debug.request.headers["User-Agent"] === "DeskTest/9" && offlineOpen.body.debug.request.headers.Cookie === "session=abc" && offlineOpen.body.debug.response.status === 200 && offlineOpen.body.item && offlineOpen.body.item.text.indexOf("ua=DeskTest/9;cookie=session=abc") !== -1, "open url without a database still sends user agent and cookie");
+  } finally {
+    await new Promise((resolve) => offlinePage.close(resolve));
+  }
   assert(desk.body.defaultModel === models.DEFAULT_MODEL && desk.body.models.length === 25 && desk.body.sources.length === 0, "desk models without a database");
   assert(JSON.stringify(desk.body).indexOf("sk-") === -1, "desk payload has no secret");
 
@@ -377,6 +419,13 @@ async function main() {
     body: { action: "add-source", name: "@example", kind: "x" },
   }, readerWrite);
   assert(readerWrite.statusCode === 403 && readerWrite.body.error === "admin_only", "reader cannot add a source");
+  const readerRemove = mockRes();
+  await analyst({
+    method: "POST",
+    headers: { host: "localhost", "x-dev-email": outsider },
+    body: { action: "remove-source", sourceId: "00000000-0000-4000-8000-000000000001" },
+  }, readerRemove);
+  assert(readerRemove.statusCode === 403 && readerRemove.body.error === "admin_only", "reader cannot remove a source");
   const readerDesk = mockRes();
   await analyst({
     method: "GET",

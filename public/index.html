@@ -65,7 +65,7 @@
   <section id="screen-admin" class="screen" hidden>
     <div class="card wide">
       <p class="brand">stock_tracker</p>
-      <h1>Allowed emails</h1>
+      <h1>Authorised emails</h1>
       <div id="admin-blocked" hidden>
         <p id="admin-blocked-text">You cannot open the user screen.</p>
         <button id="admin-blocked-back" type="button">Back to the dashboard</button>
@@ -87,24 +87,64 @@
   <section id="screen-app" class="screen" hidden>
     <header class="topbar">
       <div class="brand">stock_tracker</div>
-      <label class="select-wrap">
-        <span class="sr">Exchange</span>
-        <select id="exchange"></select>
-      </label>
-      <form id="load-form" class="load-form">
-        <input id="ticker" maxlength="10" autocomplete="off" spellcheck="false" aria-label="Ticker">
-        <button type="submit">Load</button>
-      </form>
-      <div id="timeframes" class="timeframes" role="group" aria-label="Timeframe"></div>
-      <label class="mock-switch">
-        <input id="mock-toggle" type="checkbox" role="switch">
-        <span>Mock data</span>
-      </label>
-      <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
-        <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
-        <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
-        <button id="mode-analyze" type="button" aria-pressed="false">Analyze</button>
-        <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
+      <div id="stock-tools" class="stock-tools">
+        <label class="select-wrap">
+          <span class="sr">Exchange</span>
+          <select id="exchange"></select>
+        </label>
+        <form id="load-form" class="load-form">
+          <input id="ticker" maxlength="10" autocomplete="off" spellcheck="false" aria-label="Ticker">
+          <button type="submit">Load</button>
+        </form>
+        <div id="timeframes" class="timeframes" role="group" aria-label="Timeframe"></div>
+        <label class="mock-switch">
+          <input id="mock-toggle" type="checkbox" role="switch">
+          <span>Mock data</span>
+        </label>
+      </div>
+      <div class="view-switch">
+        <span class="view-label">View:</span>
+        <div id="mode-slider" class="mode-slider" data-mode="stock" role="group" aria-label="Screen">
+          <span id="mode-thumb" class="mode-thumb" aria-hidden="true"></span>
+          <button id="mode-stock" type="button" aria-pressed="true">Stock</button>
+          <button id="mode-analyze" type="button" aria-pressed="false">Analyse</button>
+          <button id="mode-institution" type="button" aria-pressed="false">Institution</button>
+        </div>
+      </div>
+      <div class="gear-wrap">
+        <button id="gear-button" type="button" class="ghost gear-button" aria-label="Settings" aria-expanded="false" aria-controls="gear-panel">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.6.22l2.39-.96c.51.4 1.05.71 1.63.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.1.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/>
+          </svg>
+        </button>
+        <div id="gear-panel" class="gear-panel" hidden>
+          <p id="gear-email" class="gear-email"></p>
+          <label class="field">
+            <span>User-Agent</span>
+            <textarea id="gear-ua" rows="3" spellcheck="false" autocomplete="off"></textarea>
+          </label>
+          <label class="field">
+            <span>Cookie</span>
+            <textarea id="gear-cookie" rows="3" spellcheck="false" autocomplete="off"></textarea>
+          </label>
+          <label class="field">
+            <span class="reasoning-head">Reasoning <span id="gear-reasoning-readout" class="muted">Off</span></span>
+            <input id="gear-reasoning" type="range" min="0" max="3" step="1" value="0">
+            <span class="reasoning-scale" aria-hidden="true"><span>Off</span><span>Low</span><span>Medium</span><span>High</span></span>
+          </label>
+          <div class="gear-actions">
+            <button id="gear-save" type="button">Save</button>
+            <button id="gear-authorised" type="button" class="ghost">Authorised emails</button>
+          </div>
+          <p id="gear-status" class="muted" role="status"></p>
+          <section class="debug-block" aria-label="Debug">
+            <h2>Debug</h2>
+            <h3>HTTP request</h3>
+            <pre id="debug-request">No request yet.</pre>
+            <h3>HTTP response</h3>
+            <pre id="debug-response">No response yet.</pre>
+          </section>
+        </div>
       </div>
       <div class="top-actions">
         <button id="info-button" type="button" class="ghost">Help</button>
@@ -181,10 +221,10 @@
       <p id="analyst-error" class="error" role="alert"></p>
       <p id="analyst-status" class="muted" role="status"></p>
       <div id="analyst-desk" class="analyst-desk">
-        <label class="field">
-          <span>Source</span>
-          <select id="analyst-source"></select>
-        </label>
+        <div class="field">
+          <span>Existing Sources</span>
+          <ul id="analyst-sources" class="source-list"></ul>
+        </div>
         <form id="analyst-url-form" class="row">
           <input id="analyst-url-input" type="text" maxlength="2000" placeholder="Or paste a URL" autocomplete="off" spellcheck="false" aria-label="Source URL">
           <button id="analyst-open-url" type="submit">Open URL</button>
