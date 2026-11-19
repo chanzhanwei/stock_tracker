@@ -3,7 +3,7 @@
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
 const { attachFetch, canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, runWithFetchIdentity } = require("../lib/analyst-fetch");
-const { analyse, extractPage } = require("../lib/analyst-openrouter");
+const { analyse, extractPage, plannedExtractDebug } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
   configured,
@@ -101,11 +101,13 @@ async function readDesk(user) {
   return deskPayload(user.admin, { prices: prices, sources: sources, results: results, message: "" });
 }
 
-async function applyAiExtract(payload, body) {
+async function applyAiExtract(payload, body, mode) {
   if (!body || body.useAi !== true) return payload;
   const item = payload && payload.item;
   if (!item || item.pasteTranscript || !String(item.text || "").trim()) return payload;
-  const extracted = await extractPage(body.model, item.text, item.url);
+  const extracted = mode === "page"
+    ? await analyse(body.model, item.text, item.url, "", false, true)
+    : await extractPage(body.model, item.text, item.url);
   item.text = extracted.text;
   payload.debug = extracted.debug;
   return payload;
@@ -227,11 +229,19 @@ async function handle(req, res) {
           throw err;
         }
       });
-      const opened = await applyAiExtract(await openManual(target, admin.email, mode), body);
+      const opened = await applyAiExtract(await openManual(target, admin.email, mode), body, mode);
       if ((mode === "page" || mode === "channel") && target && target.fetch) opened.fetch = target.fetch;
       send(res, 200, opened);
     } catch (err) {
       if ((mode === "page" || mode === "channel") && target && target.fetch && err && !err.fetch) err.fetch = target.fetch;
+      if (body.useAi === true && (mode === "page" || mode === "channel") && !(err && err.debug && err.debug.prompt)) {
+        const url = (target && target.focusUrl) || (body && body.url) || "";
+        const text = target && target.items && target.items[0] ? target.items[0].body : "";
+        err.debug = {
+          prompt: plannedExtractDebug(body.model, text, url, mode === "page"),
+          response: "",
+        };
+      }
       throw err;
     }
     return;
