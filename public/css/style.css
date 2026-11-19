@@ -610,6 +610,7 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   .analyst-thinking i { animation: none; opacity: 1; }
 }
 .analyst-debug { margin-top: 3rem; }
+.analyst-debug .analyst-columns + .analyst-columns { margin-top: 1.25rem; }
 .analyst-debug summary { cursor: pointer; color: var(--copper); width: fit-content; }
 .reasoning-line {
   display: flex;

@@ -569,18 +569,41 @@
     applySteps();
   }
 
+  function openDebug() {
+    var details = $("analyst-debug");
+    if (details) details.open = true;
+  }
+
   function revealDebug(debug) {
     if (!debug || (!debug.prompt && !debug.response)) return;
     showDebug(debug);
-    var details = $("analyst-debug");
-    if (details) details.open = true;
+    openDebug();
+  }
+
+  function postFetchDebug(body) {
+    var posted = tab === "url" || tab === "channel";
+    if (!posted) {
+      revealDebug(body && body.debug);
+      return;
+    }
+    var model = body && body.debug && body.debug.prompt ? body.debug : null;
+    var exchange = body && body.fetch && body.fetch.request ? body.fetch : null;
+    if (useAiOn() && model) {
+      showDebug(model);
+      showHttp(null);
+    } else if (exchange) {
+      showDebug(null);
+      showHttp(exchange);
+    } else if (model) {
+      showDebug(model);
+    }
+    if (model || exchange) openDebug();
   }
 
   function applyExtract(result) {
     if (!result.ok) {
       showExtractFailure(explain(result.body));
-      if (tab === "url" && result.body && result.body.debug) showFetchDebug({ request: result.body.debug.prompt, response: result.body.debug.response });
-      else revealDebug(result.body && result.body.debug);
+      postFetchDebug(result.body);
       return;
     }
     if (result.body.sources) {
@@ -588,8 +611,7 @@
     }
     if (result.body.item) {
       showItem(result.body.item);
-      if (tab === "url" && result.body.fetch) showFetchDebug(result.body.fetch);
-      else revealDebug(result.body.debug);
+      postFetchDebug(result.body);
       step.extract = canExtract();
       step.analyse = true;
       step.save = false;
@@ -736,17 +758,11 @@
     }
   }
 
-  function setDebugLabels(requestLabel, responseLabel) {
-    var left = $("analyst-debug-request-label");
-    var right = $("analyst-debug-response-label");
-    if (left) left.textContent = requestLabel;
-    if (right) right.textContent = responseLabel;
-  }
-
-  function showFetchDebug(exchange) {
-    if (!exchange) return;
-    setDebugLabels("HTTP Request", "HTTP Response");
-    revealDebug({ prompt: exchange.request, response: exchange.response });
+  function showHttp(exchange) {
+    var request = $("analyst-http-request");
+    var response = $("analyst-http-response");
+    if (request) request.value = exchange && exchange.request ? exchange.request : "";
+    if (response) response.value = exchange && exchange.response ? exchange.response : "";
   }
 
   function showDebug(debug) {
@@ -758,6 +774,7 @@
 
   function resetDebug() {
     showDebug(null);
+    showHttp(null);
     var details = $("analyst-debug");
     if (details) details.open = false;
   }
@@ -786,8 +803,8 @@
         reasoning: reasoningOn(),
         useAi: useAiOn() && tab === "url",
       });
-      setDebugLabels("To OpenRouter", "From OpenRouter");
       showDebug(result.body && result.body.debug);
+      if (result.body && result.body.debug) openDebug();
       if (!result.ok) {
         $("analyst-result").value = "";
         setStatus("");
