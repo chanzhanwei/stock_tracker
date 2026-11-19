@@ -244,7 +244,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 }
 .account-menu .field { margin: 0; }
 #fetch-settings-save { margin-bottom: 0; }
-#users-button { margin-top: 1rem; }
+#users-button { margin-top: 0.75rem; }
 .account-menu textarea {
   width: 100%;
   min-height: 4.2rem;
@@ -259,7 +259,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 .account-menu .fine { margin: 0; }
 .account-menu .ghost { width: 100%; }
 body.is-waiting, body.is-waiting * { cursor: wait !important; }
-.who { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.15rem; overflow-wrap: anywhere; }
+.who { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.75rem; overflow-wrap: anywhere; }
 
 .workspace {
   flex: 1;
@@ -627,6 +627,7 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-left: 1.5rem;
   color: var(--text);
 }
 .reasoning-slider {

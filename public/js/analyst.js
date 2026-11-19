@@ -100,6 +100,8 @@
     }
     if (run) run.disabled = busy === "analyse" || !step.analyse;
     if (save) save.disabled = busy === "save" || !step.save;
+    var aiLine = document.querySelector(".use-ai-line");
+    if (aiLine) aiLine.hidden = clipboard;
     syncExtractedText();
     placeThinking();
   }
@@ -588,10 +590,13 @@
     }
     var model = body && body.debug && body.debug.prompt ? body.debug : null;
     var exchange = body && body.fetch && body.fetch.request ? body.fetch : null;
-    if (useAiOn() && model) {
+    if (useAiOn()) {
       showDebug(model);
       showHttp(null);
-    } else if (exchange) {
+      if (model) openDebug();
+      return;
+    }
+    if (exchange) {
       showDebug(null);
       showHttp(exchange);
     } else if (model) {
