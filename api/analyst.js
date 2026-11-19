@@ -2,7 +2,7 @@
 
 const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
-const { canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, runWithFetchIdentity } = require("../lib/analyst-fetch");
+const { attachFetch, canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, runWithFetchIdentity } = require("../lib/analyst-fetch");
 const { analyse, extractPage } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
@@ -65,11 +65,16 @@ function sendMapped(res, err) {
   const payload = { error: STATUS[code] ? code : "internal", message: message };
   const exchange = err && err.fetch && typeof err.fetch.request === "string" ? err.fetch : null;
   const debug = err && err.debug && typeof err.debug.prompt === "string" ? err.debug : null;
-  const shown = exchange || debug;
-  if (shown) {
+  if (exchange) {
+    payload.fetch = {
+      request: String(exchange.request).slice(0, 200000),
+      response: String(exchange.response || "").slice(0, 200000),
+    };
+  }
+  if (debug) {
     payload.debug = {
-      prompt: String(shown.request || shown.prompt || "").slice(0, 200000),
-      response: String(shown.response || "").slice(0, 200000),
+      prompt: String(debug.prompt).slice(0, 200000),
+      response: String(debug.response || "").slice(0, 200000),
     };
   }
   send(res, status, payload);
@@ -213,12 +218,20 @@ async function handle(req, res) {
           return;
         }
       }
-      target = await withIdentity(admin.email, function () { return openTarget(body.url, { mode: mode }); });
+      target = await withIdentity(admin.email, async function () {
+        try {
+          const opened = await openTarget(body.url, { mode: mode });
+          return attachFetch(opened);
+        } catch (err) {
+          attachFetch(err);
+          throw err;
+        }
+      });
       const opened = await applyAiExtract(await openManual(target, admin.email, mode), body);
-      if (mode === "page" && target && target.fetch) opened.fetch = target.fetch;
+      if ((mode === "page" || mode === "channel") && target && target.fetch) opened.fetch = target.fetch;
       send(res, 200, opened);
     } catch (err) {
-      if (mode === "page" && target && target.fetch && err && !err.fetch) err.fetch = target.fetch;
+      if ((mode === "page" || mode === "channel") && target && target.fetch && err && !err.fetch) err.fetch = target.fetch;
       throw err;
     }
     return;
