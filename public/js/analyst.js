@@ -579,7 +579,8 @@
   function applyExtract(result) {
     if (!result.ok) {
       showExtractFailure(explain(result.body));
-      revealDebug(result.body && result.body.debug);
+      if (tab === "url" && result.body && result.body.debug) showFetchDebug({ request: result.body.debug.prompt, response: result.body.debug.response });
+      else revealDebug(result.body && result.body.debug);
       return;
     }
     if (result.body.sources) {
@@ -587,7 +588,8 @@
     }
     if (result.body.item) {
       showItem(result.body.item);
-      revealDebug(result.body.debug);
+      if (tab === "url" && result.body.fetch) showFetchDebug(result.body.fetch);
+      else revealDebug(result.body.debug);
       step.extract = canExtract();
       step.analyse = true;
       step.save = false;
@@ -734,6 +736,19 @@
     }
   }
 
+  function setDebugLabels(requestLabel, responseLabel) {
+    var left = $("analyst-debug-request-label");
+    var right = $("analyst-debug-response-label");
+    if (left) left.textContent = requestLabel;
+    if (right) right.textContent = responseLabel;
+  }
+
+  function showFetchDebug(exchange) {
+    if (!exchange) return;
+    setDebugLabels("HTTP Request", "HTTP Response");
+    revealDebug({ prompt: exchange.request, response: exchange.response });
+  }
+
   function showDebug(debug) {
     var request = $("analyst-debug-request");
     var response = $("analyst-debug-response");
@@ -769,7 +784,9 @@
         url: current && current.url ? current.url : "",
         image: image,
         reasoning: reasoningOn(),
+        useAi: useAiOn() && tab === "url",
       });
+      setDebugLabels("To OpenRouter", "From OpenRouter");
       showDebug(result.body && result.body.debug);
       if (!result.ok) {
         $("analyst-result").value = "";

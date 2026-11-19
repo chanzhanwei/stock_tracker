@@ -39,6 +39,14 @@
     defaultOn: ["smaCustom", "volume"],
     groups: [
       {
+        id: "fundamental",
+        label: "Fundamentals",
+        items: [
+          { id: "pe", label: "PE", implemented: true },
+          { id: "futurePe", label: "Future PE", implemented: true },
+        ],
+      },
+      {
         id: "trend",
         label: "Trend",
         items: [
@@ -90,14 +98,6 @@
           { id: "institutional", label: "Institutional buy/sell", implemented: true },
           { id: "pivots", label: "Pivots", implemented: false },
           { id: "fibonacci", label: "Fibonacci", implemented: false },
-        ],
-      },
-      {
-        id: "fundamental",
-        label: "Fundamental",
-        items: [
-          { id: "pe", label: "PE", implemented: true },
-          { id: "futurePe", label: "Future PE", implemented: true },
         ],
       },
     ],

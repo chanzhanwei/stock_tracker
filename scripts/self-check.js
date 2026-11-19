@@ -58,7 +58,7 @@ assert(config.calendarDays(1300) === 2154, "client calendar span");
 assert(config.defaultTimeframe === "1Y", "default timeframe is 1Y");
 assert(config.defaultOn.length === 2 && config.defaultOn.indexOf("smaCustom") >= 0 && config.defaultOn.indexOf("volume") >= 0 && config.defaultOn.indexOf("pe") === -1 && config.defaultOn.indexOf("futurePe") === -1, "default indicators are custom SMA and volume");
 const fundamental = config.groups.find(function (group) { return group.id === "fundamental"; });
-assert(fundamental && fundamental.label === "Fundamental" && fundamental.items.map(function (item) { return item.id; }).join(",") === "pe,futurePe", "fundamental category holds PE and Future PE");
+assert(fundamental && fundamental.label === "Fundamentals" && config.groups[0].id === "fundamental" && fundamental.items.map(function (item) { return item.id; }).join(",") === "pe,futurePe", "fundamentals category sits above trend and holds PE and Future PE");
 assert(symbols.clampDays(undefined) === 120, "default days");
 assert(symbols.clampDays("99999") === 3650, "max days");
 assert(symbols.clampDays("0") === 1, "min days");
@@ -332,6 +332,8 @@ async function main() {
   assert(!page.includes("Not financial advice."), "advice line is gone");
   assert(/id="analyst-extract"[^>]*disabled/.test(page) && /id="analyst-run"[^>]*disabled/.test(page), "extract and analyse start disabled");
   assert(page.includes('id="analyst-use-ai"') && page.includes('data-mode="no"') && page.includes(">No<") && page.includes(">Yes<") && analystClient.includes("useAi: useAiOn()"), "use ai slider defaults to no");
+  assert(page.includes('id="last-change" hidden') && page.includes('id="source-badge" class="badge" hidden') && !page.includes('id="chart-fundamentals"'), "price hides the daily change and the yahoo badge");
+  assert(page.includes('id="analyst-debug-request-label">To OpenRouter') && page.includes('id="analyst-debug-response-label">From OpenRouter') && analystClient.includes("HTTP Request") && analystClient.includes("HTTP Response") && analystCss.includes("#users-button { margin-top: 1rem; }"), "new url debug shows the page fetch and settings separates save from authorised emails");
   assert(page.includes(">Extracted Text<") && page.includes(">Analysed Result<"), "text and result sit apart");
   assert(/id="analyst-save"[^>]*disabled/.test(page), "save starts disabled");
   assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
@@ -351,11 +353,12 @@ async function main() {
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
+  assert(appClient.includes('shape: "arrowUp"') && appClient.includes('text: "PE "') && appClient.includes('shape: "arrowDown"') && appClient.includes('text: "Future PE "') && !appClient.includes("paintFundamentals"), "the chart marks PE and Future PE with triangles");
   assert(appClient.includes("mock.hidden = analyze || institution") && appClient.includes('$("stock-tools")') && appClient.includes("tools.hidden = analyze || institution") && page.includes('id="stock-tools"') && !analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "mock stays on stock and the selected view is info blue");
   assert(page.includes("<h1>Authorised emails</h1>") && page.includes(">Authorised emails<") && !page.includes("Allowed emails"), "authorised emails");
   assert(analystCss.includes(".analyst-note-cell { white-space: pre-wrap; min-width: 16rem; max-width: 36rem; font-size: 0.72rem; }") && analystCss.includes(".analyst-saved input.note-input") && analystClient.includes('input.className = "note-input"'), "notes column is wider and smaller");
   assert(analystCss.includes("color: var(--muted); word-break: break-all;") && page.includes('id="analyst-remove-source"') && analystClient.includes('action: "remove-source"') && analystClient.includes("Remove this source?"), "source url is grey and an admin can remove it");
-  assert(analystCss.includes(".view-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.45rem;\n  margin-right: 0.8rem;\n}") && analystCss.includes(".who { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.15rem; overflow-wrap: anywhere; }") && analystCss.includes("#fetch-settings-save { margin-bottom: 0.15rem; }"), "view and account spacing");
+  assert(analystCss.includes(".view-switch {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.45rem;\n  margin-right: 0.8rem;\n}") && analystCss.includes(".who { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.15rem; overflow-wrap: anywhere; }") && analystCss.includes("#fetch-settings-save { margin-bottom: 0; }") && analystCss.includes("#users-button { margin-top: 1rem; }"), "view and account spacing");
   assert(page.includes('aria-label="Help"') && page.includes('aria-label="Account"') && /id="account-menu"[\s\S]*id="who"/.test(page) && /id="info-button"[\s\S]*id="signout"/.test(page) && !page.includes(">Help<") && !page.includes(">Users<"), "the gear menu holds the email and help sits left of sign out");
   assert(appClient.includes("function setAccountMenu") && appClient.includes('users-button").hidden = !state.admin') && appClient.includes("state.admin = body.admin === true") && appClient.includes('action: "save-fetch"'), "the gear menu toggles, allowed emails stays admin-only, and fetch settings save for the signed-in user");
   assert(page.includes('id="fetch-user-agent"') && page.includes('id="fetch-cookie"') && page.includes('id="analyst-source-url"') && analystClient.includes('textContent = "URL: " + url') && analystClient.includes('inputCell(tr, "date", row.date, "date")') && analystClient.includes('classList.add("is-waiting")') && analystCss.includes("body.is-waiting, body.is-waiting * { cursor: wait !important; }"), "fetch fields, source url, institution date, and wait cursor");
@@ -414,6 +417,10 @@ async function main() {
     { url: "https://example.com/stale", publishedAt: "2026-01-01T00:00:00Z", processed: false },
   ], window.cutoffIso);
   assert(!staleChoice.item && /two months/i.test(staleChoice.message), "channel skips posts older than two months");
+  const urlPrompt = priced.instructions("https://example.com/post", true);
+  assert(urlPrompt.startsWith("Analyse the URL, text or image.") && urlPrompt.includes("URL: <the post address>") && !urlPrompt.includes("URL: https://example.com/post"), "url analyse keeps the address out of the system message");
+  const urlMessage = priced.userContent("Extracted page", "", "https://example.com/post", true);
+  assert(urlMessage.indexOf("URL: https://example.com/post\n\nExtracted page") === 0, "url analyse puts the address in the user message");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
   assert(prompt.includes("Analyse the text or image.") && prompt.includes("Ignore trades older than 2 months.") && prompt.includes("Ignore Treasury Bills & Notes, Government Bonds") && prompt.includes("A increase/buy in that window is the short-term stock.") && prompt.includes("A decrease/sale in that window is the short-term avoid.\nAlways use ticker symbol when possible.") && prompt.includes("Short-term stock buy: NVDA (3), AAPL") && prompt.includes("A ticker mentioned once has no count.") && prompt.includes("strong short-term stock buy") && prompt.includes("strong short-term stock avoid") && prompt.includes("Website: <post platform>") && prompt.includes("URL: https://example.com/post") && prompt.includes("Analyst: <the commentator's name or portfolio owner> (<the commentator's organisation>)") && prompt.includes("Notes: <a short note the reader can edit>") && !prompt.includes("Today is ") && !prompt.includes("This is not financial advice."), "prompt template");
   const imageMessage = priced.userContent("", "data:image/png;base64,aaaa");

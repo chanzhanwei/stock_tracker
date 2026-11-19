@@ -576,7 +576,6 @@
       drop.hidden = true;
       high.textContent = "";
       drop.textContent = "";
-      paintFundamentals();
       return;
     }
     if (facts.high == null || !isFinite(facts.high)) {
@@ -584,7 +583,6 @@
       drop.hidden = true;
       high.textContent = "";
       drop.textContent = "";
-      paintFundamentals();
       return;
     }
     high.hidden = false;
@@ -592,7 +590,6 @@
     if (facts.declinePct == null || !isFinite(facts.declinePct)) {
       drop.hidden = true;
       drop.textContent = "";
-      paintFundamentals();
       return;
     }
     drop.hidden = false;
@@ -606,23 +603,31 @@
       ? ". Same as " + quoteDate(facts.lastVisit)
       : ". Has not traded here in the loaded history";
     drop.appendChild(document.createTextNode(rest));
-    paintFundamentals();
   }
 
-  function paintFundamentals() {
-    var box = $("chart-fundamentals");
-    if (!box) return;
+  function fundamentalMarkers(time) {
+    if (!time || !state.bars.length) return [];
     var facts = state.facts || {};
-    var lines = [];
-    if (state.toggles.pe) lines.push("PE " + formatRatio(facts.pe));
-    if (state.toggles.futurePe) lines.push("Future PE " + formatRatio(facts.forwardPe));
-    if (!state.bars.length || !lines.length) {
-      box.hidden = true;
-      box.textContent = "";
-      return;
+    var marks = [];
+    if (state.toggles.pe) {
+      marks.push({
+        time: time,
+        position: "aboveBar",
+        color: "#e4b06a",
+        shape: "arrowUp",
+        text: "PE " + formatRatio(facts.pe),
+      });
     }
-    box.hidden = false;
-    box.textContent = lines.join("\n");
+    if (state.toggles.futurePe) {
+      marks.push({
+        time: time,
+        position: "belowBar",
+        color: "#7eb6c9",
+        shape: "arrowDown",
+        text: "Future PE " + formatRatio(facts.forwardPe),
+      });
+    }
+    return marks;
   }
 
   function quoteDate(iso) {
@@ -841,6 +846,9 @@
     var markers = markerFor(state.events.filter(function (event) {
       return candles.some(function (bar) { return bar.time === event.iso; });
     }));
+    var lastTime = view.length ? view[view.length - 1].time : "";
+    markers = markers.concat(fundamentalMarkers(lastTime));
+    markers.sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
     state.series.candle.setMarkers(markers);
     var from = candles.findIndex(function (bar) { return view.length && bar.time === view[0].time; });
     var to = candles.findIndex(function (bar) { return view.length && bar.time === view[view.length - 1].time; });

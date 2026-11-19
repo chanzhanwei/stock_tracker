@@ -63,10 +63,13 @@ function sendMapped(res, err) {
     ? (err.message || "The Analyze desk could not complete that step.")
     : "The Analyze desk could not complete that step.";
   const payload = { error: STATUS[code] ? code : "internal", message: message };
-  if (err && err.debug && typeof err.debug.prompt === "string") {
+  const exchange = err && err.fetch && typeof err.fetch.request === "string" ? err.fetch : null;
+  const debug = err && err.debug && typeof err.debug.prompt === "string" ? err.debug : null;
+  const shown = exchange || debug;
+  if (shown) {
     payload.debug = {
-      prompt: String(err.debug.prompt).slice(0, 200000),
-      response: String(err.debug.response || "").slice(0, 200000),
+      prompt: String(shown.request || shown.prompt || "").slice(0, 200000),
+      response: String(shown.response || "").slice(0, 200000),
     };
   }
   send(res, status, payload);
@@ -191,26 +194,41 @@ async function handle(req, res) {
   }
   if (action === "open-url") {
     const mode = body.mode === "channel" || body.mode === "page" ? body.mode : "";
-    if (mode !== "channel") {
-      const canonical = canonicalPostUrl(body && body.url);
-      if (await isProcessedUrl(canonical)) {
-        send(res, 200, {
-          item: null,
-          message: "That post is already analysed.",
-          sources: await listSources(),
-        });
-        return;
+    let target = null;
+    try {
+      if (mode !== "channel") {
+        const canonical = canonicalPostUrl(body && body.url);
+        let already = false;
+        try {
+          already = await isProcessedUrl(canonical);
+        } catch (err) {
+          if (!err || err.code !== "database_unconfigured") throw err;
+        }
+        if (already) {
+          send(res, 200, {
+            item: null,
+            message: "That post is already analysed.",
+            sources: await listSources(),
+          });
+          return;
+        }
       }
+      target = await withIdentity(admin.email, function () { return openTarget(body.url, { mode: mode }); });
+      const opened = await applyAiExtract(await openManual(target, admin.email, mode), body);
+      if (mode === "page" && target && target.fetch) opened.fetch = target.fetch;
+      send(res, 200, opened);
+    } catch (err) {
+      if (mode === "page" && target && target.fetch && err && !err.fetch) err.fetch = target.fetch;
+      throw err;
     }
-    const target = await withIdentity(admin.email, function () { return openTarget(body.url, { mode: mode }); });
-    send(res, 200, await applyAiExtract(await openManual(target, admin.email, mode), body));
     return;
   }
   if (action === "analyse") {
     const postUrl = typeof body.url === "string" ? body.url : "";
     const image = typeof body.image === "string" ? body.image : "";
     const reasoning = body.reasoning === true;
-    send(res, 200, await analyse(body.model, body.text, postUrl, image, reasoning));
+    const urlAware = body.useAi === true;
+    send(res, 200, await analyse(body.model, body.text, postUrl, image, reasoning, urlAware));
     return;
   }
   if (action === "save") {

@@ -243,7 +243,8 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
   box-shadow: var(--shadow);
 }
 .account-menu .field { margin: 0; }
-#fetch-settings-save { margin-bottom: 0.15rem; }
+#fetch-settings-save { margin-bottom: 0; }
+#users-button { margin-top: 1rem; }
 .account-menu textarea {
   width: 100%;
   min-height: 4.2rem;
