@@ -618,6 +618,9 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   color: var(--muted);
 }
 #analyst-reasoning-label { color: var(--text); }
+#analyst-reasoning { min-width: 12.5rem; }
+#analyst-reasoning .mode-thumb { background: var(--copper); }
+#analyst-reasoning button[aria-pressed="true"] { color: var(--copper-ink); }
 .use-ai-line {
   display: flex;
   align-items: center;
