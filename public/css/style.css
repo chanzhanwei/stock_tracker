@@ -406,6 +406,18 @@ body.is-waiting, body.is-waiting * { cursor: wait !important; }
   gap: 0.1rem;
 }
 .chart { width: 100%; position: relative; min-height: 0; }
+.chart-readout {
+  position: absolute;
+  z-index: 3;
+  top: 0.45rem;
+  left: 0.6rem;
+  margin: 0;
+  pointer-events: none;
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  white-space: pre-line;
+}
 .chart-main { flex: 1.7 1 0; height: auto; }
 .chart-sub { flex: 0.75 1 0; height: auto; }
 .pane-label {

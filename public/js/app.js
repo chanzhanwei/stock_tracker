@@ -568,26 +568,23 @@
   }
 
   function paintFacts() {
-    var pe = $("quote-pe");
     var high = $("quote-high");
     var drop = $("quote-drawdown");
     var facts = state.facts;
     if (!state.bars.length || !facts) {
-      pe.hidden = true;
       high.hidden = true;
       drop.hidden = true;
-      pe.textContent = "";
       high.textContent = "";
       drop.textContent = "";
+      paintFundamentals();
       return;
     }
-    pe.hidden = false;
-    pe.textContent = "PE " + formatRatio(facts.pe) + "     Forward PE " + formatRatio(facts.forwardPe);
     if (facts.high == null || !isFinite(facts.high)) {
       high.hidden = true;
       drop.hidden = true;
       high.textContent = "";
       drop.textContent = "";
+      paintFundamentals();
       return;
     }
     high.hidden = false;
@@ -595,6 +592,7 @@
     if (facts.declinePct == null || !isFinite(facts.declinePct)) {
       drop.hidden = true;
       drop.textContent = "";
+      paintFundamentals();
       return;
     }
     drop.hidden = false;
@@ -608,6 +606,23 @@
       ? ". Same as " + quoteDate(facts.lastVisit)
       : ". Has not traded here in the loaded history";
     drop.appendChild(document.createTextNode(rest));
+    paintFundamentals();
+  }
+
+  function paintFundamentals() {
+    var box = $("chart-fundamentals");
+    if (!box) return;
+    var facts = state.facts || {};
+    var lines = [];
+    if (state.toggles.pe) lines.push("PE " + formatRatio(facts.pe));
+    if (state.toggles.futurePe) lines.push("Future PE " + formatRatio(facts.forwardPe));
+    if (!state.bars.length || !lines.length) {
+      box.hidden = true;
+      box.textContent = "";
+      return;
+    }
+    box.hidden = false;
+    box.textContent = lines.join("\n");
   }
 
   function quoteDate(iso) {

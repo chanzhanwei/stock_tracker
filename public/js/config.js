@@ -92,6 +92,14 @@
           { id: "fibonacci", label: "Fibonacci", implemented: false },
         ],
       },
+      {
+        id: "fundamental",
+        label: "Fundamental",
+        items: [
+          { id: "pe", label: "PE", implemented: true },
+          { id: "futurePe", label: "Future PE", implemented: true },
+        ],
+      },
     ],
   };
 });

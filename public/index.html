@@ -163,7 +163,6 @@
             <strong id="last-price">—</strong>
             <span id="last-change"></span>
             <span id="source-badge" class="badge"></span>
-            <p id="quote-pe" class="quote-facts" hidden></p>
             <p id="quote-high" class="quote-facts" hidden></p>
             <p id="quote-drawdown" class="quote-facts" hidden></p>
           </div>
@@ -182,7 +181,9 @@
           <p id="inst-caption" class="muted"></p>
         </section>
         <div id="chart-stack" class="chart-stack">
-          <div id="chart-main" class="chart chart-main"></div>
+          <div id="chart-main" class="chart chart-main">
+            <p id="chart-fundamentals" class="chart-readout" hidden></p>
+          </div>
           <div id="rsi-pane" class="sub-pane" hidden>
             <p class="pane-label">RSI 14</p>
             <div id="chart-rsi" class="chart chart-sub"></div>
