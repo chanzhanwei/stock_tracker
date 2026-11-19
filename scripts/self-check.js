@@ -58,7 +58,7 @@ assert(config.calendarDays(1300) === 2154, "client calendar span");
 assert(config.defaultTimeframe === "1Y", "default timeframe is 1Y");
 assert(config.defaultOn.length === 2 && config.defaultOn.indexOf("smaCustom") >= 0 && config.defaultOn.indexOf("volume") >= 0 && config.defaultOn.indexOf("pe") === -1 && config.defaultOn.indexOf("futurePe") === -1, "default indicators are custom SMA and volume");
 const fundamental = config.groups.find(function (group) { return group.id === "fundamental"; });
-assert(fundamental && fundamental.label === "Fundamentals" && config.groups[0].id === "fundamental" && fundamental.items.map(function (item) { return item.id; }).join(",") === "pe,futurePe", "fundamentals category sits above trend and holds PE and Future PE");
+assert(fundamental && fundamental.label === "Fundamentals" && config.groups[0].id === "fundamental" && fundamental.items.map(function (item) { return item.id; }).join(",") === "pe,futurePe" && fundamental.items.map(function (item) { return item.label; }).join(",") === "PE,Forward PE", "fundamentals category sits above trend and holds PE and Forward PE");
 assert(symbols.clampDays(undefined) === 120, "default days");
 assert(symbols.clampDays("99999") === 3650, "max days");
 assert(symbols.clampDays("0") === 1, "min days");
@@ -353,7 +353,8 @@ async function main() {
   assert(analystClient.includes('action: "update-result"') && analystClient.includes('action: "delete-result"') && analystClient.includes('aria-label", label') && analystClient.includes("Delete this saved analysis?"), "rows edit and delete");
   assert(!analystClient.includes("about:blank") && analystClient.includes('window.open(opened.url, "_blank", "noopener,noreferrer")') && analystClient.includes("function resetDebug"), "url is shown before a window and debug resets");
   const appClient = fs.readFileSync(path.join(root, "public/js/app.js"), "utf8");
-  assert(appClient.includes('shape: "arrowUp"') && appClient.includes('text: "PE "') && appClient.includes('shape: "arrowDown"') && appClient.includes('text: "Future PE "') && !appClient.includes("paintFundamentals"), "the chart marks PE and Future PE with triangles");
+  const fundamentalMarks = appClient.slice(appClient.indexOf("function fundamentalMarkers"), appClient.indexOf("function quoteDate"));
+  assert((fundamentalMarks.match(/color: "#e36a6a"/g) || []).length === 2 && (fundamentalMarks.match(/size: 2/g) || []).length === 2 && fundamentalMarks.includes('shape: "arrowUp"') && fundamentalMarks.includes('text: "PE "') && fundamentalMarks.includes('shape: "arrowDown"') && fundamentalMarks.includes('text: "Forward PE "') && appClient.includes("state.toggles.pe || state.toggles.futurePe ? 16 : 2") && !appClient.includes("paintFundamentals"), "the chart marks PE and Forward PE with large red triangles");
   assert(appClient.includes("mock.hidden = analyze || institution") && appClient.includes('$("stock-tools")') && appClient.includes("tools.hidden = analyze || institution") && page.includes('id="stock-tools"') && !analystCss.includes("margin-left: calc(100px - 0.4rem)") && analystCss.includes("background: var(--info)"), "mock stays on stock and the selected view is info blue");
   assert(page.includes("<h1>Authorised emails</h1>") && page.includes(">Authorised emails<") && !page.includes("Allowed emails"), "authorised emails");
   assert(analystCss.includes(".analyst-note-cell { white-space: pre-wrap; min-width: 16rem; max-width: 36rem; font-size: 0.72rem; }") && analystCss.includes(".analyst-saved input.note-input") && analystClient.includes('input.className = "note-input"'), "notes column is wider and smaller");

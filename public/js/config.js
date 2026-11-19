@@ -43,7 +43,7 @@
         label: "Fundamentals",
         items: [
           { id: "pe", label: "PE", implemented: true },
-          { id: "futurePe", label: "Future PE", implemented: true },
+          { id: "futurePe", label: "Forward PE", implemented: true },
         ],
       },
       {

@@ -613,8 +613,9 @@
       marks.push({
         time: time,
         position: "aboveBar",
-        color: "#e4b06a",
+        color: "#e36a6a",
         shape: "arrowUp",
+        size: 2,
         text: "PE " + formatRatio(facts.pe),
       });
     }
@@ -622,9 +623,10 @@
       marks.push({
         time: time,
         position: "belowBar",
-        color: "#7eb6c9",
+        color: "#e36a6a",
         shape: "arrowDown",
-        text: "Future PE " + formatRatio(facts.forwardPe),
+        size: 2,
+        text: "Forward PE " + formatRatio(facts.forwardPe),
       });
     }
     return marks;
@@ -853,7 +855,8 @@
     var from = candles.findIndex(function (bar) { return view.length && bar.time === view[0].time; });
     var to = candles.findIndex(function (bar) { return view.length && bar.time === view[view.length - 1].time; });
     if (from >= 0 && to >= from) {
-      var range = { from: Math.max(0, from - 0.5), to: to + 2 };
+      var markerRoom = state.toggles.pe || state.toggles.futurePe ? 16 : 2;
+      var range = { from: Math.max(0, from - 0.5), to: to + markerRoom };
       state.syncing = true;
       state.charts.main.timeScale().setVisibleLogicalRange(range);
       state.charts.rsi.timeScale().setVisibleLogicalRange(range);
