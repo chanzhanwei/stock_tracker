@@ -20,6 +20,18 @@
     "deepseek/deepseek-v4.1-flash-1017": true,
     "anthropic/claude-haiku-5.5": true,
   };
+  var URL_AI_HIDDEN = {
+    "google/gemini-4-carbon": true,
+    "google/gemini-4-argon": true,
+    "google/gemini-3.8-flash": true,
+    "openai/gpt-6-astra": true,
+    "openai/gpt-6.1-sol": true,
+    "openai/gpt-6.1-terra": true,
+    "openai/gpt-6-sol": true,
+    "openai/gpt-5.6-terra": true,
+    "x-ai/grok-4.7": true,
+    "x-ai/grok-4.6": true,
+  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -153,6 +165,11 @@
     Array.prototype.forEach.call(group.querySelectorAll("button"), function (button) {
       button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
     });
+    renderModels();
+  }
+
+  function urlAiHidesModels() {
+    return tab === "url" && useAiOn();
   }
 
   function reasoningOn() {
@@ -280,21 +297,27 @@
     if (next !== "clipboard") showImage("");
     if (changed) clearAnalysis();
     resetStep();
+    renderModels();
   }
 
   function renderModels() {
     var select = $("analyst-model");
     if (!select) return;
-    var selected = select.value || defaultModel;
+    var hide = urlAiHidesModels();
+    var previous = select.value;
+    var selected = previous || defaultModel;
+    if (hide && URL_AI_HIDDEN[selected]) selected = defaultModel;
     select.textContent = "";
     models.forEach(function (id) {
+      if (hide && URL_AI_HIDDEN[id]) return;
       var option = document.createElement("option");
       option.value = id;
       option.textContent = modelLabel(id);
       if (id === selected) option.selected = true;
       select.appendChild(option);
     });
-    if (!select.value && models.length) select.value = defaultModel || models[0];
+    if (!select.value && select.options.length) select.value = select.options[0].value;
+    if (select.value !== previous) applyReasoningForModel(select.value);
     syncModelOptions();
   }
 
