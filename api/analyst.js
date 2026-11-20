@@ -2,7 +2,7 @@
 
 const { DEFAULT_MODEL, MODELS, URL_EXTRACT_ERROR, knownModel, refusesUrlExtract } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
-const { attachFetch, canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, runWithFetchIdentity } = require("../lib/analyst-fetch");
+const { attachFetch, canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, recordPage, runWithFetchIdentity } = require("../lib/analyst-fetch");
 const { analyse, extractPage, plannedExtractDebug } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
@@ -211,8 +211,44 @@ async function handle(req, res) {
   }
   if (action === "open-url") {
     const mode = body.mode === "channel" || body.mode === "page" ? body.mode : "";
+    if (mode === "channel" && body.useAi === true) {
+      send(res, 400, { error: "not_implemented", message: "Not implemented yet" });
+      return;
+    }
     if (mode === "page" && body.useAi === true && refusesUrlExtract(body.model)) {
       send(res, 400, { error: "bad_model", message: URL_EXTRACT_ERROR });
+      return;
+    }
+    if (mode === "page" && body.useAi === true) {
+      const canonical = canonicalPostUrl(body && body.url);
+      let already = false;
+      try {
+        already = await isProcessedUrl(canonical);
+      } catch (err) {
+        if (!err || err.code !== "database_unconfigured") throw err;
+      }
+      if (already) {
+        send(res, 200, {
+          item: null,
+          message: "That post is already analysed.",
+          sources: await listSources(),
+        });
+        return;
+      }
+      const extracted = await analyse(body.model, "", canonical, "", body.reasoning === true, true, true);
+      let opened;
+      try {
+        opened = await openManual(recordPage(canonical, extracted.text), admin.email, "page");
+      } catch (err) {
+        if (!err || err.code !== "database_unconfigured") throw err;
+        opened = { item: { url: canonical, text: "", title: "", kind: "website" }, message: "" };
+      }
+      if (opened.item) {
+        opened.item.text = extracted.text;
+        opened.item.pasteTranscript = false;
+      }
+      opened.debug = extracted.debug;
+      send(res, 200, opened);
       return;
     }
     let target = null;
