@@ -106,7 +106,7 @@ async function applyAiExtract(payload, body, mode) {
   const item = payload && payload.item;
   if (!item || item.pasteTranscript || !String(item.text || "").trim()) return payload;
   const extracted = mode === "page"
-    ? await analyse(body.model, item.text, item.url, "", false, true)
+    ? await analyse(body.model, item.text, item.url, "", false, true, true)
     : await extractPage(body.model, item.text, item.url);
   item.text = extracted.text;
   payload.debug = extracted.debug;
