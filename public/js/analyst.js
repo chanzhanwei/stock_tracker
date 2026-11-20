@@ -20,18 +20,7 @@
     "deepseek/deepseek-v4.1-flash-1017": true,
     "anthropic/claude-haiku-5.5": true,
   };
-  var URL_AI_HIDDEN = {
-    "google/gemini-4-carbon": true,
-    "google/gemini-4-argon": true,
-    "google/gemini-3.8-flash": true,
-    "openai/gpt-6-astra": true,
-    "openai/gpt-6.1-sol": true,
-    "openai/gpt-6.1-terra": true,
-    "openai/gpt-6-sol": true,
-    "openai/gpt-5.6-terra": true,
-    "x-ai/grok-4.7": true,
-    "x-ai/grok-4.6": true,
-  };
+  var URL_EXTRACT_ERROR = "This model do not extract URL contents";
 
   function $(id) { return document.getElementById(id); }
 
@@ -165,11 +154,17 @@
     Array.prototype.forEach.call(group.querySelectorAll("button"), function (button) {
       button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
     });
-    renderModels();
   }
 
-  function urlAiHidesModels() {
-    return tab === "url" && useAiOn();
+  function blocksUrlExtract(id) {
+    return /^(google\/gemini|openai\/gpt|x-ai\/grok)/.test(id || "");
+  }
+
+  function showModelExtractError(message) {
+    var el = $("model-extract-error");
+    if (!el) return;
+    el.textContent = message || "";
+    el.hidden = !message;
   }
 
   function reasoningOn() {
@@ -297,19 +292,17 @@
     if (next !== "clipboard") showImage("");
     if (changed) clearAnalysis();
     resetStep();
+    showModelExtractError("");
     renderModels();
   }
 
   function renderModels() {
     var select = $("analyst-model");
     if (!select) return;
-    var hide = urlAiHidesModels();
     var previous = select.value;
     var selected = previous || defaultModel;
-    if (hide && URL_AI_HIDDEN[selected]) selected = defaultModel;
     select.textContent = "";
     models.forEach(function (id) {
-      if (hide && URL_AI_HIDDEN[id]) return;
       var option = document.createElement("option");
       option.value = id;
       option.textContent = modelLabel(id);
@@ -630,6 +623,10 @@
 
   function applyExtract(result) {
     if (!result.ok) {
+      if (result.body && result.body.message === URL_EXTRACT_ERROR) {
+        showModelExtractError(URL_EXTRACT_ERROR);
+        return;
+      }
       showExtractFailure(explain(result.body));
       postFetchDebug(result.body);
       return;
@@ -677,6 +674,11 @@
   async function extract() {
     setError("");
     setStatus("");
+    showModelExtractError("");
+    if (tab === "url" && useAiOn() && blocksUrlExtract($("analyst-model").value)) {
+      showModelExtractError(URL_EXTRACT_ERROR);
+      return;
+    }
     if (tab === "existing" && !selectedSourceId()) {
       showExtractFailure("Choose a saved source.");
       return;
@@ -693,7 +695,7 @@
     applySteps();
     try {
       var result;
-      var ai = { useAi: useAiOn(), model: $("analyst-model").value };
+      var ai = { useAi: useAiOn(), model: $("analyst-model").value, reasoning: reasoningOn() };
       if (tab === "existing") {
         result = await post(Object.assign({ action: "fetch", sourceId: selectedSourceId() }, ai));
       } else if (tab === "channel") {
@@ -928,6 +930,7 @@
     });
     $("analyst-text").addEventListener("input", resetDebug);
     $("analyst-model").addEventListener("change", function () {
+      showModelExtractError("");
       applyReasoningForModel($("analyst-model").value);
     });
     $("analyst-reasoning").addEventListener("click", function (event) {

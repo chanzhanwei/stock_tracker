@@ -347,7 +347,8 @@ async function main() {
   assert(/id="analyst-paste"[\s\S]*id="analyst-paste-preview"/.test(page) && analystCss.includes(".analyst-desk { width: 100%; margin: 0 auto; }") && analystCss.includes(".sources-card {"), "sources card and pasted image");
   assert(page.includes(">Notes<") && page.includes("<th>Website</th>") && analystClient.includes("row.note") && analystClient.includes('inputCell(tr, "website", row.website)') && analystClient.includes("textCell(tr, row.website)"), "institution shows the note and website");
   assert(analystClient.includes("httpUrl(row.postUrl) || httpUrl(row.url)") && analystClient.includes("minimax/minimax-m3.1-flash") && analystClient.includes("xiaomi/mimo-v2.6-pro") && analystClient.includes("deepseek/deepseek-v4.1-flash-1017") && analystClient.includes("anthropic/claude-haiku-5.5") && analystClient.includes("reasoning: reasoningOn()") && /function runAnalyse\(\) \{[\s\S]*?\$\("analyst-result"\)\.value = ""/.test(analystClient), "reasoning, image models, and a cleared result");
-  assert(analystClient.includes('return tab === "url" && useAiOn()') && analystClient.includes('"google/gemini-4-carbon"') && analystClient.includes('"openai/gpt-6-sol"') && analystClient.includes('"x-ai/grok-4.7"') && analystCss.includes("@keyframes hourglass-flip") && analystCss.includes("@keyframes sand-top") && analystCss.includes(".hourglass.is-idle .sand-top") && /prefers-reduced-motion: reduce\) \{[\s\S]*\.sand-top/.test(analystCss), "new url hides gemini gpt and grok, and the hourglass drains then flips");
+  assert(page.includes('id="model-extract-error"') && analystClient.includes("This model do not extract URL contents") && analystClient.includes("blocksUrlExtract") && !analystClient.includes("URL_AI_HIDDEN") && /function extract\(\) \{[\s\S]*?reasoning: reasoningOn\(\)/.test(analystClient), "new url extract stops gemini gpt and grok and sends reasoning");
+  assert(analystCss.includes("@keyframes hourglass-flip") && analystCss.includes("@keyframes sand-top") && analystCss.includes(".hourglass.is-idle .sand-top") && /prefers-reduced-motion: reduce\) \{[\s\S]*\.sand-top/.test(analystCss), "the hourglass drains then flips");
   assert(/function showTab\(next\) \{[\s\S]*?if \(changed\) clearAnalysis\(\)/.test(analystClient) && /\$\("analyst-source"\)\.addEventListener\("change", function \(\) \{\s*showSourceUrl\(\);\s*clearAnalysis\(\);/.test(analystClient), "tab and existing source clear the text and the result");
   assert(/function syncExtractedText\(\) \{\s*var field = \$\("analyst-text-field"\);\s*if \(field\) field\.hidden = tab === "clipboard";/.test(analystClient), "clipboard hides extracted text");
   assert(/function applyReasoningForModel\(modelId\) \{\s*setReasoning\(modelId === MINIMAX_MODEL\);/.test(analystClient), "only minimax turns reasoning on");
@@ -382,7 +383,7 @@ async function main() {
   assert(kept.includes("Notes: edited") && kept.includes("Website: TheStreet") && !kept.includes("Notes: old"), "edit rewrites the notes line");
   const addedLine = parse.replaceLabeledLine("Date: 2026-01-01", "Notes", "");
   assert(addedLine === "Date: 2026-01-01\nNotes: ", "edit adds a missing line");
-  assert(models.MODELS.length === 24 && models.MODELS.indexOf("thinkingmachines/inkling-2-small:free") === -1 && models.MODELS.indexOf("xiaomi/mimo-v2.6-pro") !== -1 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1, "model ids");
+  assert(models.MODELS.length === 26 && models.MODELS.indexOf("thinkingmachines/inkling-2-small:free") === -1 && models.MODELS.indexOf("xiaomi/mimo-v2.6-pro") !== -1 && models.MODELS.indexOf("tencent/hy4") !== -1 && models.MODELS.indexOf("tencent/hy4-flash") !== -1 && models.MODELS.indexOf("https://openrouter.ai/tencent") === -1 && models.refusesUrlExtract("google/gemini-4-carbon") && models.refusesUrlExtract("openai/gpt-6-sol") && models.refusesUrlExtract("x-ai/grok-4.7") && !models.refusesUrlExtract("tencent/hy4") && models.URL_EXTRACT_ERROR === "This model do not extract URL contents", "model ids");
   const picks = parse.parsePicks([
     "Website: TheStreet",
     "Analyst: Ada",
@@ -423,8 +424,8 @@ async function main() {
   assert(urlPrompt.startsWith("Analyse the URL, text or image.") && urlPrompt.includes("URL: <the post address>") && !urlPrompt.includes("URL: https://example.com/post"), "url analyse keeps the address out of the system message");
   const urlMessage = priced.userContent("Extracted page", "", "https://example.com/post", true);
   assert(urlMessage.indexOf("URL: https://example.com/post\n\nExtracted page") === 0, "url analyse puts the address in the user message");
-  const urlExtract = priced.plannedExtractDebug("openai/gpt-6-sol", "Page text", "https://example.com/post", true);
-  assert(urlExtract.includes("Analyse the URL, text or image.") && urlExtract.includes("URL: <the post address>") && urlExtract.includes("URL: https://example.com/post\\n\\nPage text") && urlExtract.includes('"model": "deepseek/deepseek-v4.1-flash-1017"') && urlExtract.includes('"type": "openrouter:web_fetch"') && urlExtract.includes('"engine": "openrouter"') && urlExtract.includes('"max_uses": 1') && urlExtract.indexOf("gpt-6-sol") === -1, "new url extract with ai uses deepseek and web fetch");
+  const urlExtract = priced.plannedExtractDebug("tencent/hy4", "Page text", "https://example.com/post", true, true);
+  assert(urlExtract.includes("Analyse the URL, text or image.") && urlExtract.includes("URL: <the post address>") && urlExtract.includes("URL: https://example.com/post\\n\\nPage text") && urlExtract.includes('"model": "tencent/hy4"') && urlExtract.includes('"enabled": true') && urlExtract.includes('"type": "openrouter:web_fetch"') && urlExtract.includes('"engine": "openrouter"') && urlExtract.includes('"max_uses": 1'), "new url extract with ai sends the selected model, reasoning, and web fetch");
   const channelExtract = priced.plannedExtractDebug("deepseek/deepseek-v4.1-flash-1017", "Page text", "https://example.com/feed", false);
   assert(channelExtract.includes("Extract the article or post text from this page.") && channelExtract.indexOf("Analyse the URL") === -1, "channel extract with ai keeps the short prompt");
   const prompt = priced.instructions("https://example.com/post", new Date("2026-11-15T03:00:00Z"));
@@ -487,8 +488,14 @@ async function main() {
     sentFetch = JSON.parse(options.body);
     return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: "Date: 2026-11-01" } }] }) };
   };
-  const fetchedPage = await priced.analyse("openai/gpt-6-sol", "Page text", "https://example.com/post", "", false, true, true);
-  assert(sentFetch.model === "deepseek/deepseek-v4.1-flash-1017" && sentFetch.tools[0].type === "openrouter:web_fetch" && sentFetch.tools[0].parameters.engine === "openrouter" && sentFetch.tools[0].parameters.max_uses === 1 && fetchedPage.text === "Date: 2026-11-01" && fetchedPage.debug.prompt.includes("openrouter:web_fetch"), "new url extract sends deepseek with web fetch");
+  const fetchedPage = await priced.analyse("tencent/hy4", "Page text", "https://example.com/post", "", true, true, true);
+  assert(sentFetch.model === "tencent/hy4" && sentFetch.reasoning.enabled === true && sentFetch.tools[0].type === "openrouter:web_fetch" && sentFetch.tools[0].parameters.engine === "openrouter" && sentFetch.tools[0].parameters.max_uses === 1 && fetchedPage.text === "Date: 2026-11-01" && fetchedPage.debug.prompt.includes("openrouter:web_fetch") && fetchedPage.debug.response.includes('"choices"'), "new url extract sends the selected model with web fetch and keeps the response json");
+  global.fetch = async function (_url, options) {
+    sentFetch = JSON.parse(options.body);
+    return { ok: true, text: async () => JSON.stringify({ choices: [{ message: { content: [{ type: "text", text: "Date: 2026-11-02" }] } }] }) };
+  };
+  const fromParts = await priced.analyse("tencent/hy4-flash", "", "https://example.com/only", "", false, true, true);
+  assert(sentFetch.messages[1].content === "URL: https://example.com/only" && fromParts.text === "Date: 2026-11-02" && fromParts.debug.response.includes("Date: 2026-11-02"), "a url with no page text still reaches openrouter and array content is kept");
   let sentExtract = null;
   global.fetch = async function (_url, options) {
     sentExtract = JSON.parse(options.body);
@@ -565,7 +572,7 @@ async function main() {
   const desk = mockRes();
   await analyst({ method: "GET", headers: { host: "localhost" } }, desk);
   assert(desk.statusCode === 200 && desk.body.database === false && desk.body.message.indexOf("DATABASE_URL") !== -1, "analyst names the missing database");
-  assert(desk.body.defaultModel === models.DEFAULT_MODEL && desk.body.models.length === 24 && desk.body.models.indexOf("thinkingmachines/inkling-2-small:free") === -1 && desk.body.sources.length === 0, "desk models without a database");
+  assert(desk.body.defaultModel === models.DEFAULT_MODEL && desk.body.models.length === 26 && desk.body.models.indexOf("thinkingmachines/inkling-2-small:free") === -1 && desk.body.sources.length === 0, "desk models without a database");
   assert(JSON.stringify(desk.body).indexOf("sk-") === -1, "desk payload has no secret");
 
   const missingKey = mockRes();
