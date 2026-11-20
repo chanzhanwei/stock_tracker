@@ -157,7 +157,7 @@
   }
 
   function blocksUrlExtract(id) {
-    return /^(google\/gemini|openai\/gpt|x-ai\/grok)/.test(id || "");
+    return /^(google\/gemini|openai\/gpt|x-ai\/grok|deepseek\/)/.test(id || "");
   }
 
   function showModelExtractError(message) {
@@ -672,9 +672,15 @@
   }
 
   async function extract() {
+    showDebug(null);
+    showHttp(null);
     setError("");
     setStatus("");
     showModelExtractError("");
+    if (tab === "channel" && useAiOn()) {
+      setError("Not implemented yet");
+      return;
+    }
     if (tab === "url" && useAiOn() && blocksUrlExtract($("analyst-model").value)) {
       showModelExtractError(URL_EXTRACT_ERROR);
       return;

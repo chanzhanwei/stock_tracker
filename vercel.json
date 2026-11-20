@@ -1,6 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "functions": {
+    "api/analyst.js": {
+      "maxDuration": 300
+    }
+  },
   "headers": [
     {
       "source": "/vendor/(.*)",
