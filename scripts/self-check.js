@@ -331,9 +331,9 @@ async function main() {
   assert(page.includes(">New URL<") && page.includes(">New Channel<") && page.includes(">Clipboard<") && page.includes(">Existing Source<") && page.includes(">Paste from clipboard<"), "source tabs");
   assert(!page.includes("Not financial advice."), "advice line is gone");
   assert(/id="analyst-extract"[^>]*disabled/.test(page) && /id="analyst-run"[^>]*disabled/.test(page), "extract and analyse start disabled");
-  assert(page.includes('id="analyst-use-ai"') && page.includes('data-mode="no"') && page.includes(">No<") && page.includes(">Yes<") && analystClient.includes("useAi: useAiOn()"), "use ai slider defaults to no");
+  assert(page.includes('id="analyst-use-ai"') && page.includes('data-mode="no"') && page.includes(">No<") && page.includes(">Yes<") && page.includes(">Use Bot<") && analystClient.includes("useBot: useBotOn()"), "use bot slider defaults to no");
   assert(page.includes('id="last-change" hidden') && page.includes('id="source-badge" class="badge" hidden') && !page.includes('id="chart-fundamentals"'), "price hides the daily change and the yahoo badge");
-  assert(page.includes('id="analyst-debug-request-label">To OpenRouter') && page.includes('id="analyst-debug-response-label">From OpenRouter') && page.includes('id="analyst-http-request-label">HTTP Request') && page.includes('id="analyst-http-response-label">HTTP Response') && analystClient.includes("function showHttp") && analystClient.includes('tab === "url" || tab === "channel"') && analystClient.includes("if (useAiOn())") && analystClient.includes("aiLine.hidden = clipboard") && !analystClient.includes("setDebugLabels") && analystCss.includes("#users-button { margin-top: 29.25px; }") && analystCss.includes("margin-left: 52.5px;") && analystCss.includes(".analyst-debug .analyst-columns + .analyst-columns { margin-top: 1.25rem; }"), "debug keeps openrouter above the page fetch and clipboard hides use ai");
+  assert(page.includes('id="analyst-debug-request-label">To OpenRouter') && page.includes('id="analyst-debug-response-label">From OpenRouter') && page.includes('id="analyst-http-request-label">HTTP Request') && page.includes('id="analyst-http-response-label">HTTP Response') && analystClient.includes("function showHttp") && analystClient.includes('tab === "url" || tab === "channel"') && analystClient.includes("if (body && body.bot)") && analystClient.includes("aiLine.hidden = clipboard") && analystClient.includes('function labelDebug(kind)') && !analystClient.includes("setDebugLabels") && analystCss.includes("#users-button { margin-top: 29.25px; }") && analystCss.includes("margin-left: 52.5px;") && analystCss.includes(".analyst-debug .analyst-columns + .analyst-columns { margin-top: 1.25rem; }"), "debug keeps openrouter above the page fetch and a bot job retitles the boxes");
   assert(page.includes(">Extracted Text<") && page.includes(">Analysed Result<"), "text and result sit apart");
   assert(/id="analyst-save"[^>]*disabled/.test(page), "save starts disabled");
   assert(!page.includes("flaticon") && page.includes('id="analyst-thinking"') && analystCss.includes(".analyst-thinking i"), "thinking dots");
@@ -347,7 +347,7 @@ async function main() {
   assert(/id="analyst-paste"[\s\S]*id="analyst-paste-preview"/.test(page) && analystCss.includes(".analyst-desk { width: 100%; margin: 0 auto; }") && analystCss.includes(".sources-card {"), "sources card and pasted image");
   assert(page.includes(">Notes<") && page.includes("<th>Website</th>") && analystClient.includes("row.note") && analystClient.includes('inputCell(tr, "website", row.website)') && analystClient.includes("textCell(tr, row.website)"), "institution shows the note and website");
   assert(analystClient.includes("httpUrl(row.postUrl) || httpUrl(row.url)") && analystClient.includes("minimax/minimax-m3.1-flash") && analystClient.includes("xiaomi/mimo-v2.6-pro") && analystClient.includes("deepseek/deepseek-v4.1-flash-1017") && analystClient.includes("anthropic/claude-haiku-5.5") && analystClient.includes("reasoning: reasoningOn()") && /function runAnalyse\(\) \{[\s\S]*?\$\("analyst-result"\)\.value = ""/.test(analystClient), "reasoning, image models, and a cleared result");
-  assert(page.includes('id="model-extract-error"') && analystClient.includes("This model do not extract URL contents") && analystClient.includes("blocksUrlExtract") && analystClient.includes("deepseek\\/") && !analystClient.includes("URL_AI_HIDDEN") && /function extract\(\) \{\s*showDebug\(null\);\s*showHttp\(null\);/.test(analystClient) && analystClient.includes('setError("Not implemented yet")') && /function extract\(\) \{[\s\S]*?reasoning: reasoningOn\(\)/.test(analystClient), "new url extract stops gemini gpt grok and deepseek and sends reasoning");
+  assert(page.includes('id="model-extract-error"') && !analystClient.includes("blocksUrlExtract") && !analystClient.includes('setError("Not implemented yet")') && analystClient.includes('setStatus("Waiting for Grok Bot")') && analystClient.includes('setError("Grok Bot has not picked up this job.")') && analystClient.includes('action: "bot-job"') && /function extract\(\) \{[\s\S]*?reasoning: reasoningOn\(\)/.test(analystClient), "use bot waits for a job and does not block a model");
   assert(analystCss.includes("@keyframes hourglass-flip") && analystCss.includes("@keyframes sand-top") && analystCss.includes(".hourglass.is-idle .sand-top") && /prefers-reduced-motion: reduce\) \{[\s\S]*\.sand-top/.test(analystCss), "the hourglass drains then flips");
   assert(/function showTab\(next\) \{[\s\S]*?if \(changed\) clearAnalysis\(\)/.test(analystClient) && /\$\("analyst-source"\)\.addEventListener\("change", function \(\) \{\s*showSourceUrl\(\);\s*clearAnalysis\(\);/.test(analystClient), "tab and existing source clear the text and the result");
   assert(/function syncExtractedText\(\) \{\s*var field = \$\("analyst-text-field"\);\s*if \(field\) field\.hidden = tab === "clipboard";/.test(analystClient), "clipboard hides extracted text");
@@ -446,7 +446,7 @@ async function main() {
   assert(openrouterSrc.includes("reasoning: { enabled: reasoning === true }") && !openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("fetchPage ? 180000") && openrouterSrc.includes("withImage ? 60000 : 25000"), "reasoning follows the slider, web fetch waits 180 seconds, and image calls wait 60 seconds");
   const analystApi = fs.readFileSync(path.join(root, "api/analyst.js"), "utf8");
   const vercelConfig = fs.readFileSync(path.join(root, "vercel.json"), "utf8");
-  assert(analystApi.includes('message: "Not implemented yet"') && analystApi.includes('analyse(body.model, "", canonical') && analystApi.includes("recordPage(canonical, extracted.text)") && vercelConfig.includes('"maxDuration": 300'), "new url ai skips the local fetch and the analyse function can wait 300 seconds");
+  assert(analystApi.includes('action === "bot-job"') && analystApi.includes("createBotJob") && analystApi.includes("recordPage(canonical, text)") && !analystApi.includes("Not implemented yet") && !analystApi.includes("XAI_API_KEY") && vercelConfig.includes('"maxDuration": 300'), "use bot queues a job and the analyse function can wait 300 seconds");
   const recorded = fetched.recordPage("https://example.com/post", "Extracted");
   assert(recorded.kind === "website" && recorded.focusUrl === "https://example.com/post" && recorded.items[0].body === "Extracted" && recorded.items[0].publishedAt == null, "ai page record stores the model text without fetching");
   const realFetch = global.fetch;
@@ -555,6 +555,12 @@ async function main() {
   assert(blankCosts.totalCost == null && blankCosts.inputCost == null && blankCosts.outputCost == null, "costs blank without a call");
 
   const analystDb = require("../lib/analyst-db");
+  const youtubeJob = analystDb.buildBotRequest({ mode: "page", url: "https://www.youtube.com/watch?v=abcdefghijk", kind: "youtube", skip: [] });
+  assert(youtubeJob.instruction.includes("public spoken transcript") && youtubeJob.instruction.includes("pasteTranscript") && youtubeJob.kind === "youtube", "a youtube bot job asks for a public transcript");
+  const channelJob = analystDb.buildBotRequest({ mode: "channel", url: "https://example.com/investing", kind: "website", skip: ["https://example.com/older"], sourceName: "https://example.com/investing" });
+  assert(channelJob.instruction.includes("newest post") && channelJob.instruction.includes("https://example.com/older") && channelJob.cutoff, "a channel bot job skips posts that are already analysed");
+  const botScript = fs.readFileSync(path.join(root, "scripts/bot-job.js"), "utf8");
+  assert(botScript.includes('command === "claim"') && botScript.includes('command === "complete"') && botScript.includes("DATABASE_URL") && !botScript.includes("XAI_API_KEY") && dbSrc.includes("CREATE TABLE IF NOT EXISTS analyst_bot_jobs") && dbSrc.includes("interval '15 minutes'"), "the bot script claims a neon job and a stale claim returns to pending");
   const ordered = analystDb.sortResults([
     { date: "2026-01-01" },
     { date: "" },
@@ -639,6 +645,50 @@ async function main() {
     await new Promise((resolve) => feedServer.listen(0, "127.0.0.1", resolve));
     const feedUrl = "http://127.0.0.1:" + feedServer.address().port + "/feed";
     try {
+      const queued = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "open-url", url: "https://example.com/bot-post", mode: "page", useBot: true },
+      }, queued);
+      assert(queued.statusCode === 200 && queued.body.waiting === true && queued.body.bot === true && queued.body.jobId, "use bot queues a page job");
+      const claimed = await analystDb.claimBotJob();
+      assert(claimed && claimed.id === queued.body.jobId && claimed.status === "claimed" && claimed.request.instruction.indexOf("example.com/bot-post") !== -1, "claim takes the oldest pending job");
+      await analystDb.completeBotJob(claimed.id, {
+        url: "https://example.com/bot-post",
+        title: "Bot post",
+        text: "Extracted by the bot.",
+        pasteTranscript: false,
+      });
+      const done = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "bot-job", jobId: claimed.id },
+      }, done);
+      assert(done.statusCode === 200 && done.body.waiting === false && done.body.item && done.body.item.text.indexOf("Extracted by the bot.") !== -1, "a finished bot job fills the text");
+      const videoQueued = await analystDb.createBotJob({
+        mode: "page",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+        kind: "youtube",
+        skip: [],
+      });
+      const videoClaim = await analystDb.claimBotJob();
+      assert(videoClaim && videoClaim.id === videoQueued.id, "claim takes the youtube job next");
+      await analystDb.completeBotJob(videoClaim.id, {
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+        title: "Chip talk",
+        text: "",
+        pasteTranscript: true,
+      });
+      const videoDone = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "bot-job", jobId: videoClaim.id },
+      }, videoDone);
+      assert(videoDone.statusCode === 200 && videoDone.body.item && videoDone.body.item.pasteTranscript === true && videoDone.body.item.text.indexOf("Chip talk") !== -1, "a youtube bot job without a transcript stays pasteable");
+      assert(await analystDb.claimBotJob() == null, "claim is empty when nothing is pending");
       const created = mockRes();
       await analyst({
         method: "POST",

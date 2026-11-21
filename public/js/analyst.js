@@ -14,6 +14,7 @@
   var busy = "";
   var pastedImage = "";
   var editingId = "";
+  var botPoll = null;
   var IMAGE_MODEL = "xiaomi/mimo-v2.6-pro";
   var MINIMAX_MODEL = "minimax/minimax-m3.1-flash";
   var IMAGE_BLOCKED = {
@@ -141,7 +142,7 @@
     mark.hidden = false;
   }
 
-  function useAiOn() {
+  function useBotOn() {
     var group = $("analyst-use-ai");
     return !!(group && group.dataset.mode === "yes");
   }
@@ -154,10 +155,6 @@
     Array.prototype.forEach.call(group.querySelectorAll("button"), function (button) {
       button.setAttribute("aria-pressed", button.dataset.value === value ? "true" : "false");
     });
-  }
-
-  function blocksUrlExtract(id) {
-    return /^(google\/gemini|openai\/gpt|x-ai\/grok|deepseek\/)/.test(id || "");
   }
 
   function showModelExtractError(message) {
@@ -289,6 +286,8 @@
       if (panel) panel.hidden = !active;
     });
     showTranscript(null);
+    stopBotPoll();
+    if (busy === "extract") busy = "";
     if (next !== "clipboard") showImage("");
     if (changed) clearAnalysis();
     resetStep();
@@ -606,12 +605,14 @@
     }
     var model = body && body.debug && body.debug.prompt ? body.debug : null;
     var exchange = body && body.fetch && body.fetch.request ? body.fetch : null;
-    if (useAiOn()) {
+    if (body && body.bot) {
+      labelDebug("grok");
       showDebug(model);
       showHttp(null);
       if (model) openDebug();
       return;
     }
+    labelDebug("openrouter");
     if (exchange) {
       showDebug(null);
       showHttp(exchange);
@@ -671,20 +672,66 @@
     }
   }
 
+  function stopBotPoll() {
+    if (!botPoll) return;
+    clearTimeout(botPoll.timer);
+    botPoll = null;
+  }
+
+  function giveUpBot() {
+    stopBotPoll();
+    busy = "";
+    setStatus("");
+    setError("Grok Bot has not picked up this job.");
+    step.extract = canExtract();
+    step.analyse = false;
+    step.save = false;
+    applySteps();
+  }
+
+  function finishExtract(result, openTab) {
+    applyExtract(result);
+    var opened = result.ok && result.body && result.body.item;
+    if (openTab && opened && opened.url && (opened.kind === "website" || opened.kind === "youtube")) {
+      window.open(opened.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  async function pollBot(jobId, started, openWhenDone) {
+    if (!botPoll || botPoll.id !== jobId) return;
+    if (Date.now() - started >= 600000) {
+      giveUpBot();
+      return;
+    }
+    try {
+      var result = await post({ action: "bot-job", jobId: jobId });
+      if (!botPoll || botPoll.id !== jobId) return;
+      if (result.ok && result.body && result.body.waiting) {
+        setStatus("Waiting for Grok Bot");
+        botPoll.timer = setTimeout(function () { pollBot(jobId, started, openWhenDone); }, 3000);
+        return;
+      }
+      stopBotPoll();
+      busy = "";
+      finishExtract(result, openWhenDone);
+      applySteps();
+    } catch (err) {
+      if (!botPoll || botPoll.id !== jobId) return;
+      stopBotPoll();
+      busy = "";
+      showExtractFailure("The text could not be extracted.");
+      applySteps();
+    }
+  }
+
   async function extract() {
+    stopBotPoll();
     showDebug(null);
     showHttp(null);
+    labelDebug("openrouter");
     setError("");
     setStatus("");
     showModelExtractError("");
-    if (tab === "channel" && useAiOn()) {
-      setError("Not implemented yet");
-      return;
-    }
-    if (tab === "url" && useAiOn() && blocksUrlExtract($("analyst-model").value)) {
-      showModelExtractError(URL_EXTRACT_ERROR);
-      return;
-    }
     if (tab === "existing" && !selectedSourceId()) {
       showExtractFailure("Choose a saved source.");
       return;
@@ -699,26 +746,40 @@
     }
     busy = "extract";
     applySteps();
+    var keepBusy = false;
     try {
       var result;
-      var ai = { useAi: useAiOn(), model: $("analyst-model").value, reasoning: reasoningOn() };
+      var bot = { useBot: useBotOn(), model: $("analyst-model").value, reasoning: reasoningOn() };
+      var openWhenDone = tab === "existing";
       if (tab === "existing") {
-        result = await post(Object.assign({ action: "fetch", sourceId: selectedSourceId() }, ai));
+        result = await post(Object.assign({ action: "fetch", sourceId: selectedSourceId() }, bot));
       } else if (tab === "channel") {
-        result = await post(Object.assign({ action: "open-url", url: $("analyst-channel-input").value.trim(), mode: "channel" }, ai));
+        result = await post(Object.assign({ action: "open-url", url: $("analyst-channel-input").value.trim(), mode: "channel" }, bot));
       } else {
-        result = await post(Object.assign({ action: "open-url", url: $("analyst-url-input").value.trim(), mode: "page" }, ai));
+        result = await post(Object.assign({ action: "open-url", url: $("analyst-url-input").value.trim(), mode: "page" }, bot));
       }
-      applyExtract(result);
-      var opened = result.ok && result.body && result.body.item;
-      if (tab === "existing" && opened && opened.url && (opened.kind === "website" || opened.kind === "youtube")) {
-        window.open(opened.url, "_blank", "noopener,noreferrer");
+      if (result.ok && result.body && result.body.waiting && result.body.jobId) {
+        keepBusy = true;
+        labelDebug("grok");
+        showDebug(result.body.debug);
+        showHttp(null);
+        if (result.body.debug) openDebug();
+        setError("");
+        setStatus("Waiting for Grok Bot");
+        var started = Date.now();
+        var jobId = result.body.jobId;
+        botPoll = { id: jobId };
+        botPoll.timer = setTimeout(function () { pollBot(jobId, started, openWhenDone); }, 3000);
+        return;
       }
+      finishExtract(result, openWhenDone);
     } catch (err) {
       showExtractFailure("The text could not be extracted.");
     } finally {
-      busy = "";
-      applySteps();
+      if (!keepBusy) {
+        busy = "";
+        applySteps();
+      }
     }
   }
 
@@ -801,6 +862,14 @@
     if (response) response.value = exchange && exchange.response ? exchange.response : "";
   }
 
+  function labelDebug(kind) {
+    var request = $("analyst-debug-request-label");
+    var response = $("analyst-debug-response-label");
+    var grok = kind === "grok";
+    if (request) request.textContent = grok ? "To Grok" : "To OpenRouter";
+    if (response) response.textContent = grok ? "From Grok" : "From OpenRouter";
+  }
+
   function showDebug(debug) {
     var request = $("analyst-debug-request");
     var response = $("analyst-debug-response");
@@ -809,6 +878,7 @@
   }
 
   function resetDebug() {
+    labelDebug("openrouter");
     showDebug(null);
     showHttp(null);
     var details = $("analyst-debug");
@@ -825,6 +895,7 @@
       return;
     }
     $("analyst-result").value = "";
+    labelDebug("openrouter");
     busy = "analyse";
     applySteps();
     setStatus("Analysing.");
@@ -837,7 +908,7 @@
         url: current && current.url ? current.url : "",
         image: image,
         reasoning: reasoningOn(),
-        useAi: useAiOn() && tab === "url",
+        useBot: useBotOn() && tab === "url",
       });
       showDebug(result.body && result.body.debug);
       if (result.body && result.body.debug) openDebug();
