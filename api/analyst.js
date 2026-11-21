@@ -1,9 +1,9 @@
 "use strict";
 
-const { DEFAULT_MODEL, MODELS, URL_EXTRACT_ERROR, knownModel, refusesUrlExtract } = require("../lib/analyst-models");
+const { DEFAULT_MODEL, MODELS, knownModel } = require("../lib/analyst-models");
 const { loadPrices } = require("../lib/analyst-prices");
 const { attachFetch, canonicalPostUrl, discover, normalizeSourceName, openTarget, readSiteLabel, recordPage, runWithFetchIdentity } = require("../lib/analyst-fetch");
-const { analyse, extractPage, plannedExtractDebug } = require("../lib/analyst-openrouter");
+const { analyse } = require("../lib/analyst-openrouter");
 const {
   DATABASE_MESSAGE,
   configured,
@@ -21,6 +21,9 @@ const {
   isProcessedUrl,
   openManual,
   getFetchSettings,
+  processedUrls,
+  createBotJob,
+  getBotJob,
 } = require("../lib/analyst-db");
 const { readBody, requireAdmin, requireUser, send, withErrors } = require("../lib/allowlist");
 
@@ -49,6 +52,7 @@ const STATUS = {
   youtube_channel_not_found: 502,
   x_unavailable: 502,
   fetch_failed: 502,
+  bot_failed: 502,
   no_items: 200,
 };
 
@@ -77,6 +81,7 @@ function sendMapped(res, err) {
       response: String(debug.response || "").slice(0, 200000),
     };
   }
+  if (err && err.bot) payload.bot = true;
   send(res, status, payload);
 }
 
@@ -101,26 +106,78 @@ async function readDesk(user) {
   return deskPayload(user.admin, { prices: prices, sources: sources, results: results, message: "" });
 }
 
-async function applyAiExtract(payload, body, mode) {
-  if (!body || body.useAi !== true) return payload;
-  const item = payload && payload.item;
-  if (!item || item.pasteTranscript) return payload;
-  if (mode === "page") {
-    if (refusesUrlExtract(body.model)) {
-      const err = new Error(URL_EXTRACT_ERROR);
-      err.code = "bad_model";
-      throw err;
-    }
-    const extracted = await analyse(body.model, item.text, item.url, "", body.reasoning === true, true, true);
-    item.text = extracted.text;
-    payload.debug = extracted.debug;
-    return payload;
+function botDebug(job) {
+  return {
+    prompt: JSON.stringify(job && job.request || {}, null, 2),
+    response: JSON.stringify(job && job.result || {}, null, 2),
+  };
+}
+
+function waitingPayload(job) {
+  return {
+    waiting: true,
+    bot: true,
+    jobId: job.id,
+    debug: { prompt: JSON.stringify(job.request || {}, null, 2), response: "" },
+  };
+}
+
+async function queueBotJob(input) {
+  const job = await createBotJob(input);
+  return waitingPayload(job);
+}
+
+async function readBotJob(id, email) {
+  const job = await getBotJob(id);
+  if (!job) {
+    const err = new Error("That job is gone.");
+    err.code = "not_found";
+    throw err;
   }
-  if (!String(item.text || "").trim()) return payload;
-  const extracted = await extractPage(body.model, item.text, item.url);
-  item.text = extracted.text;
-  payload.debug = extracted.debug;
-  return payload;
+  if (job.status === "pending" || job.status === "claimed") return waitingPayload(job);
+  const result = job.result || {};
+  const debug = botDebug(job);
+  if (job.status === "error" || result.error) {
+    const err = new Error(result.error || "Grok Bot could not read that page.");
+    err.code = "bot_failed";
+    err.bot = true;
+    err.debug = debug;
+    throw err;
+  }
+  let canonical = result.url || (job.request && job.request.url) || "";
+  try {
+    canonical = canonicalPostUrl(canonical);
+  } catch (err) {
+    const bad = new Error("Grok Bot did not return a page address.");
+    bad.code = "bad_url";
+    bad.bot = true;
+    bad.debug = debug;
+    throw bad;
+  }
+  const text = String(result.text || "");
+  const title = String(result.title || "");
+  const target = recordPage(canonical, text);
+  if (job.mode !== "page") {
+    if (job.request && job.request.sourceName) target.sourceName = job.request.sourceName;
+    if (job.request && job.request.kind) target.kind = job.request.kind;
+  }
+  if (target.items[0]) target.items[0].title = title;
+  const opened = await openManual(target, email, job.mode === "page" ? "page" : "channel");
+  if (opened.item) {
+    const transcript = result.pasteTranscript === true || (opened.item.kind === "youtube" && !text.trim());
+    if (transcript) {
+      opened.item.pasteTranscript = true;
+      opened.item.text = title ? title + "\n\n" : "";
+    } else if (opened.item.kind === "youtube") {
+      opened.item.pasteTranscript = false;
+      opened.item.text = text;
+    }
+  }
+  opened.bot = true;
+  opened.waiting = false;
+  opened.jobId = job.id;
+  opened.debug = debug;
+  return opened;
 }
 
 async function withIdentity(email, fn) {
@@ -197,8 +254,33 @@ async function handle(req, res) {
       send(res, 400, { error: "bad_request", message: "Choose a saved source." });
       return;
     }
+    if (body.useBot === true) {
+      const source = await getSource(body.sourceId);
+      if (!source) {
+        send(res, 404, { error: "not_found", message: "That source is not saved." });
+        return;
+      }
+      const skip = await processedUrls(source.id, 30);
+      send(res, 200, await queueBotJob({
+        mode: "source",
+        url: source.url || source.name,
+        kind: source.kind,
+        sourceName: source.name,
+        sourceId: source.id,
+        skip: skip,
+      }));
+      return;
+    }
     const fetched = await withIdentity(admin.email, function () { return fetchNext(body.sourceId); });
-    send(res, 200, await applyAiExtract(fetched, body));
+    send(res, 200, fetched);
+    return;
+  }
+  if (action === "bot-job") {
+    if (!isUuid(body.jobId)) {
+      send(res, 400, { error: "bad_request", message: "That job is gone." });
+      return;
+    }
+    send(res, 200, await readBotJob(body.jobId, admin.email));
     return;
   }
   if (action === "remove-source") {
@@ -211,48 +293,32 @@ async function handle(req, res) {
   }
   if (action === "open-url") {
     const mode = body.mode === "channel" || body.mode === "page" ? body.mode : "";
-    if (mode === "channel" && body.useAi === true) {
-      send(res, 400, { error: "not_implemented", message: "Not implemented yet" });
-      return;
-    }
-    if (mode === "page" && body.useAi === true && refusesUrlExtract(body.model)) {
-      send(res, 400, { error: "bad_model", message: URL_EXTRACT_ERROR });
-      return;
-    }
-    if (mode === "page" && body.useAi === true) {
+    if (body.useBot === true && (mode === "page" || mode === "channel")) {
       const canonical = canonicalPostUrl(body && body.url);
-      let already = false;
-      try {
-        already = await isProcessedUrl(canonical);
-      } catch (err) {
-        if (!err || err.code !== "database_unconfigured") throw err;
+      if (mode === "page") {
+        let already = false;
+        try {
+          already = await isProcessedUrl(canonical);
+        } catch (err) {
+          if (!err || err.code !== "database_unconfigured") throw err;
+        }
+        if (already) {
+          send(res, 200, {
+            item: null,
+            message: "That post is already analysed.",
+            sources: await listSources(),
+          });
+          return;
+        }
       }
-      if (already) {
-        send(res, 200, {
-          item: null,
-          message: "That post is already analysed.",
-          sources: await listSources(),
-        });
-        return;
-      }
-      const extracted = await analyse(body.model, "", canonical, "", body.reasoning === true, true, true);
-      let opened;
-      try {
-        opened = await openManual(recordPage(canonical, extracted.text), admin.email, "page");
-      } catch (err) {
-        if (!err || err.code !== "database_unconfigured") throw err;
-        opened = { item: { url: canonical, text: "", title: "", kind: "website" }, message: "" };
-      }
-      if (opened.item) {
-        opened.item.text = extracted.text;
-        opened.item.pasteTranscript = false;
-      }
-      opened.debug = extracted.debug;
-      send(res, 200, opened);
+      send(res, 200, await queueBotJob({
+        mode: mode,
+        url: canonical,
+        sourceName: mode === "channel" ? canonical : "",
+      }));
       return;
     }
     let target = null;
-    let aiStarted = false;
     try {
       if (mode !== "channel") {
         const canonical = canonicalPostUrl(body && body.url);
@@ -280,36 +346,11 @@ async function handle(req, res) {
           throw err;
         }
       });
-      aiStarted = true;
-      const opened = await applyAiExtract(await openManual(target, admin.email, mode), body, mode);
+      const opened = await openManual(target, admin.email, mode);
       if ((mode === "page" || mode === "channel") && target && target.fetch) opened.fetch = target.fetch;
       send(res, 200, opened);
     } catch (err) {
       if ((mode === "page" || mode === "channel") && target && target.fetch && err && !err.fetch) err.fetch = target.fetch;
-      if (mode === "page" && body.useAi === true && !aiStarted) {
-        const url = (target && target.focusUrl) || (body && body.url) || "";
-        const text = target && target.items && target.items[0] ? target.items[0].body : "";
-        try {
-          const extracted = await analyse(body.model, text, url, "", body.reasoning === true, true, true);
-          send(res, 200, {
-            item: { url: url, text: extracted.text, title: "", kind: "website" },
-            debug: extracted.debug,
-            message: "",
-          });
-          return;
-        } catch (aiErr) {
-          if (err && err.fetch && aiErr && !aiErr.fetch) aiErr.fetch = err.fetch;
-          throw aiErr;
-        }
-      }
-      if (body.useAi === true && mode === "channel" && !(err && err.debug && err.debug.prompt)) {
-        const url = (target && target.focusUrl) || (body && body.url) || "";
-        const text = target && target.items && target.items[0] ? target.items[0].body : "";
-        err.debug = {
-          prompt: plannedExtractDebug(body.model, text, url, false, body.reasoning === true),
-          response: "",
-        };
-      }
       throw err;
     }
     return;
@@ -318,7 +359,7 @@ async function handle(req, res) {
     const postUrl = typeof body.url === "string" ? body.url : "";
     const image = typeof body.image === "string" ? body.image : "";
     const reasoning = body.reasoning === true;
-    const urlAware = body.useAi === true;
+    const urlAware = body.useBot === true;
     send(res, 200, await analyse(body.model, body.text, postUrl, image, reasoning, urlAware));
     return;
   }

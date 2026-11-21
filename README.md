@@ -59,7 +59,9 @@ Only `chanzhanwei@gmail.com` can add a source, open a URL, fetch the next unproc
 
 A source is either one already saved, or a URL pasted on the desk. Add a source with a name and a kind: YouTube channel, X user, Substack, or website. Fetch reads the next item from a saved source that has not been analysed yet. A pasted URL opens that post, or the next unprocessed post when the URL is a channel, profile, or site. The publication is saved, and a post that has already been analysed is not opened again.
 
-YouTube items come from the channel's public video RSS, or from the video page title when the URL is a single video. The app does not download captions; paste the transcript into the text box. An X user is read from the public FxEmbed timeline. A website or Substack is fetched from its URL, or from the RSS feed the page points at.
+YouTube items come from the channel's public video RSS, or from the video page title when the URL is a single video. The app does not download captions. With Use Bot off, paste the transcript into the text box. An X user is read from the public FxEmbed timeline. A website or Substack is fetched from its URL, or from the RSS feed the page points at.
+
+Use Bot replaces Use AI. Off keeps that local fetch. On, Extract writes a row in `analyst_bot_jobs` and the desk shows "Waiting for Grok Bot" until a Cursor agent claims it. The agent needs the same `DATABASE_URL` as the app. It runs `node scripts/bot-job.js claim`, reads the page, and completes the job with JSON on stdin (`url`, `title`, `text`, `pasteTranscript`). For a YouTube video, include the public transcript in `text` when you can read it. If you cannot, set `pasteTranscript` to true and leave the transcript empty. There is no `XAI_API_KEY`. The app does not start the agent. Analyse still uses OpenRouter.
 
 Analyse sends the text box to OpenRouter from the server. The key stays in `OPENROUTER_API_KEY` and is never sent to the browser. The default model is `deepseek/deepseek-v4.1-flash-1017`. After a call, that model's row shows the total, input, and output cost for the rest of the browser session. Costs stay blank before a call.
 
