@@ -51,6 +51,25 @@
     if (el) el.textContent = message || "";
   }
 
+  function setBotStatus(agentId) {
+    var el = $("analyst-status");
+    if (!el) return;
+    var id = String(agentId || "");
+    if (!/^bc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      setStatus("Waiting for Grok Bot");
+      return;
+    }
+    el.textContent = "";
+    el.appendChild(document.createTextNode("Grok Bot "));
+    var link = document.createElement("a");
+    link.href = "https://cursor.com/agents/" + id;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = id;
+    el.appendChild(link);
+    el.appendChild(document.createTextNode(" is reading this page."));
+  }
+
   function explain(body) {
     if (!body) return "The Analyze desk could not complete that step.";
     if (body.error === "admin_only") return "Only the administrator can add sources, analyse, and save.";
@@ -699,7 +718,7 @@
 
   async function pollBot(jobId, started, openWhenDone) {
     if (!botPoll || botPoll.id !== jobId) return;
-    if (Date.now() - started >= 600000) {
+    if (Date.now() - started >= 900000) {
       giveUpBot();
       return;
     }
@@ -707,7 +726,7 @@
       var result = await post({ action: "bot-job", jobId: jobId });
       if (!botPoll || botPoll.id !== jobId) return;
       if (result.ok && result.body && result.body.waiting) {
-        setStatus("Waiting for Grok Bot");
+        setBotStatus(botPoll.agentId);
         botPoll.timer = setTimeout(function () { pollBot(jobId, started, openWhenDone); }, 3000);
         return;
       }
@@ -765,10 +784,10 @@
         showHttp(null);
         if (result.body.debug) openDebug();
         setError("");
-        setStatus("Waiting for Grok Bot");
         var started = Date.now();
         var jobId = result.body.jobId;
-        botPoll = { id: jobId };
+        botPoll = { id: jobId, agentId: result.body.agentId || "" };
+        setBotStatus(botPoll.agentId);
         botPoll.timer = setTimeout(function () { pollBot(jobId, started, openWhenDone); }, 3000);
         return;
       }

@@ -24,6 +24,7 @@ const {
   processedUrls,
   createBotJob,
   getBotJob,
+  failBotJob,
 } = require("../lib/analyst-db");
 const { readBody, requireAdmin, requireUser, send, withErrors } = require("../lib/allowlist");
 
@@ -53,6 +54,8 @@ const STATUS = {
   x_unavailable: 502,
   fetch_failed: 502,
   bot_failed: 502,
+  cursor_unconfigured: 503,
+  cursor_failed: 502,
   no_items: 200,
 };
 
@@ -82,7 +85,111 @@ function sendMapped(res, err) {
     };
   }
   if (err && err.bot) payload.bot = true;
+  if (err && err.jobId) payload.jobId = err.jobId;
   send(res, status, payload);
+}
+
+const CURSOR_REPO = "https://github.com/chanzhanwei/stock_tracker";
+let cachedGrokModel = "";
+
+function isAgentId(value) {
+  return /^bc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+function agentUrl(id) {
+  return "https://cursor.com/agents/" + id;
+}
+
+function botRunName(url) {
+  let host = "page";
+  try {
+    host = new URL(String(url || "")).hostname.replace(/^www\./, "") || "page";
+  } catch (err) { /* a request without a url still gets a short name */ }
+  return ("Read " + host).slice(0, 100);
+}
+
+function cursorError(code, message) {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+}
+
+async function cursorJson(method, url, body) {
+  const key = process.env.CURSOR_API_KEY || "";
+  if (!key) throw cursorError("cursor_unconfigured", "Set CURSOR_API_KEY on the server.");
+  let res;
+  try {
+    const headers = {
+      Authorization: "Basic " + Buffer.from(key + ":").toString("base64"),
+      Accept: "application/json",
+    };
+    if (body) headers["Content-Type"] = "application/json";
+    res = await fetch(url, {
+      method: method,
+      headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (err) {
+    throw cursorError("cursor_failed", "Grok Bot could not be started.");
+  }
+  const text = await res.text();
+  let parsed = {};
+  try { parsed = text ? JSON.parse(text) : {}; } catch (err) { parsed = {}; }
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw cursorError("cursor_failed", "CURSOR_API_KEY cannot start a Grok Bot.");
+    const message = parsed && typeof parsed.message === "string" && parsed.message.trim()
+      ? parsed.message.trim().slice(0, 300)
+      : "Grok Bot could not be started.";
+    throw cursorError("cursor_failed", message);
+  }
+  return parsed;
+}
+
+async function grokModelId() {
+  if (cachedGrokModel) return cachedGrokModel;
+  const listed = await cursorJson("GET", "https://api.cursor.com/v1/models");
+  const items = listed && Array.isArray(listed.items) ? listed.items : [];
+  const grok = items.filter(function (item) {
+    const id = String(item && item.id || "");
+    const name = String(item && item.displayName || "");
+    return /grok/i.test(id + " " + name);
+  });
+  const preferred = grok.find(function (item) { return item.id === "grok-4.7"; });
+  const chosen = preferred || grok[0];
+  if (!chosen || !chosen.id) throw cursorError("cursor_unconfigured", "Cursor has no Grok model for this key.");
+  cachedGrokModel = String(chosen.id);
+  return cachedGrokModel;
+}
+
+async function startGrokBot(job) {
+  const databaseUrl = process.env.DATABASE_URL || "";
+  if (!databaseUrl) throw cursorError("database_unconfigured", DATABASE_MESSAGE);
+  const modelId = await grokModelId();
+  const request = job.request || {};
+  const prompt = [
+    "Run this one analyst bot job. Do not edit files, do not commit, and do not open a pull request.",
+    "Job id: " + job.id,
+    "Claim only this job:",
+    "node scripts/bot-job.js claim " + job.id,
+    "Read the page described in the printed job request. Keep the title, date, author, and the body.",
+    "Complete only this job by piping a JSON object to:",
+    "node scripts/bot-job.js complete " + job.id,
+    "The JSON object has url, title, text, and pasteTranscript.",
+    String(request.instruction || ""),
+  ].join("\n");
+  const created = await cursorJson("POST", "https://api.cursor.com/v1/agents", {
+    prompt: { text: prompt },
+    model: { id: modelId },
+    name: botRunName(request.url),
+    repos: [{ url: CURSOR_REPO, startingRef: "main" }],
+    autoCreatePR: false,
+    envVars: { DATABASE_URL: databaseUrl },
+  });
+  const agent = created && created.agent ? created.agent : {};
+  const id = String(agent.id || "");
+  if (!isAgentId(id)) throw cursorError("cursor_failed", "Grok Bot did not return an id.");
+  return { id: id, url: agentUrl(id) };
 }
 
 function deskPayload(admin, extra) {
@@ -113,18 +220,33 @@ function botDebug(job) {
   };
 }
 
-function waitingPayload(job) {
+function waitingPayload(job, agent) {
+  const url = agent && agent.url ? agent.url : "";
   return {
     waiting: true,
     bot: true,
     jobId: job.id,
-    debug: { prompt: JSON.stringify(job.request || {}, null, 2), response: "" },
+    agentId: agent && agent.id ? agent.id : "",
+    agentUrl: url,
+    debug: { prompt: JSON.stringify(job.request || {}, null, 2), response: url },
   };
 }
 
 async function queueBotJob(input) {
   const job = await createBotJob(input);
-  return waitingPayload(job);
+  try {
+    const agent = await startGrokBot(job);
+    return waitingPayload(job, agent);
+  } catch (err) {
+    const message = String(err && err.message || "Grok Bot could not be started.").slice(0, 500);
+    try { await failBotJob(job.id, message); } catch (failErr) { /* the launch error is the one to report */ }
+    const wrapped = new Error(message);
+    wrapped.code = err && err.code ? err.code : "cursor_failed";
+    wrapped.bot = true;
+    wrapped.jobId = job.id;
+    wrapped.debug = { prompt: JSON.stringify(job.request || {}, null, 2), response: "" };
+    throw wrapped;
+  }
 }
 
 async function readBotJob(id, email) {

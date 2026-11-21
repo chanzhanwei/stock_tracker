@@ -161,6 +161,7 @@ h3 { margin: 1rem 0 0.3rem; font-size: 1rem; }
 .lede, .fine, .muted { color: var(--muted); }
 .fine { font-size: 0.82rem; }
 .error { color: var(--sell); min-height: 1.2em; margin: 0.4rem 0; }
+#analyst-status a { color: var(--copper); }
 .field { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.8rem 0; }
 .field input { width: 100%; }
 .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
