@@ -45,7 +45,11 @@ async function main() {
   const command = process.argv[2];
   if (!process.env.DATABASE_URL) fail("Set DATABASE_URL to the same Neon connection string the app uses.");
   if (command === "claim") {
-    const job = await db.claimBotJob();
+    const id = process.argv[3];
+    if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      fail("Pass the job id: node scripts/bot-job.js claim <id>");
+    }
+    const job = await db.claimBotJob(id);
     process.stdout.write(JSON.stringify({ job: job }) + "\n");
     return;
   }
@@ -62,7 +66,7 @@ async function main() {
     process.stdout.write(JSON.stringify(saved) + "\n");
     return;
   }
-  fail("Use claim, or complete <id> with a JSON result on stdin.");
+  fail("Use claim [id], or complete <id> with a JSON result on stdin.");
 }
 
 main().catch(function (err) {

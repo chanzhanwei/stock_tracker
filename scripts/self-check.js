@@ -347,7 +347,7 @@ async function main() {
   assert(/id="analyst-paste"[\s\S]*id="analyst-paste-preview"/.test(page) && analystCss.includes(".analyst-desk { width: 100%; margin: 0 auto; }") && analystCss.includes(".sources-card {"), "sources card and pasted image");
   assert(page.includes(">Notes<") && page.includes("<th>Website</th>") && analystClient.includes("row.note") && analystClient.includes('inputCell(tr, "website", row.website)') && analystClient.includes("textCell(tr, row.website)"), "institution shows the note and website");
   assert(analystClient.includes("httpUrl(row.postUrl) || httpUrl(row.url)") && analystClient.includes("minimax/minimax-m3.1-flash") && analystClient.includes("xiaomi/mimo-v2.6-pro") && analystClient.includes("deepseek/deepseek-v4.1-flash-1017") && analystClient.includes("anthropic/claude-haiku-5.5") && analystClient.includes("reasoning: reasoningOn()") && /function runAnalyse\(\) \{[\s\S]*?\$\("analyst-result"\)\.value = ""/.test(analystClient), "reasoning, image models, and a cleared result");
-  assert(page.includes('id="model-extract-error"') && !analystClient.includes("blocksUrlExtract") && !analystClient.includes('setError("Not implemented yet")') && analystClient.includes('setStatus("Waiting for Grok Bot")') && analystClient.includes('setError("Grok Bot has not picked up this job.")') && analystClient.includes('action: "bot-job"') && /function extract\(\) \{[\s\S]*?reasoning: reasoningOn\(\)/.test(analystClient), "use bot waits for a job and does not block a model");
+  assert(page.includes('id="model-extract-error"') && !analystClient.includes("blocksUrlExtract") && !analystClient.includes('setError("Not implemented yet")') && analystClient.includes("function setBotStatus") && analystClient.includes('setStatus("Waiting for Grok Bot")') && analystClient.includes("https://cursor.com/agents/") && analystClient.includes('link.target = "_blank"') && analystClient.includes("900000") && analystClient.includes('setError("Grok Bot has not picked up this job.")') && analystClient.includes('action: "bot-job"') && analystCss.includes("#analyst-status a { color: var(--copper); }") && /function extract\(\) \{[\s\S]*?reasoning: reasoningOn\(\)/.test(analystClient), "use bot links the agent id and does not block a model");
   assert(analystCss.includes("@keyframes hourglass-flip") && analystCss.includes("@keyframes sand-top") && analystCss.includes(".hourglass.is-idle .sand-top") && /prefers-reduced-motion: reduce\) \{[\s\S]*\.sand-top/.test(analystCss), "the hourglass drains then flips");
   assert(/function showTab\(next\) \{[\s\S]*?if \(changed\) clearAnalysis\(\)/.test(analystClient) && /\$\("analyst-source"\)\.addEventListener\("change", function \(\) \{\s*showSourceUrl\(\);\s*clearAnalysis\(\);/.test(analystClient), "tab and existing source clear the text and the result");
   assert(/function syncExtractedText\(\) \{\s*var field = \$\("analyst-text-field"\);\s*if \(field\) field\.hidden = tab === "clipboard";/.test(analystClient), "clipboard hides extracted text");
@@ -446,7 +446,7 @@ async function main() {
   assert(openrouterSrc.includes("reasoning: { enabled: reasoning === true }") && !openrouterSrc.includes("payload.reasoning = { enabled: false }") && openrouterSrc.includes("fetchPage ? 180000") && openrouterSrc.includes("withImage ? 60000 : 25000"), "reasoning follows the slider, web fetch waits 180 seconds, and image calls wait 60 seconds");
   const analystApi = fs.readFileSync(path.join(root, "api/analyst.js"), "utf8");
   const vercelConfig = fs.readFileSync(path.join(root, "vercel.json"), "utf8");
-  assert(analystApi.includes('action === "bot-job"') && analystApi.includes("createBotJob") && analystApi.includes("recordPage(canonical, text)") && !analystApi.includes("Not implemented yet") && !analystApi.includes("XAI_API_KEY") && vercelConfig.includes('"maxDuration": 300'), "use bot queues a job and the analyse function can wait 300 seconds");
+  assert(analystApi.includes('action === "bot-job"') && analystApi.includes("createBotJob") && analystApi.includes("failBotJob") && analystApi.includes("https://api.cursor.com/v1/agents") && analystApi.includes("autoCreatePR: false") && analystApi.includes("grok-4.7") && analystApi.includes("recordPage(canonical, text)") && !analystApi.includes("Not implemented yet") && !analystApi.includes("XAI_API_KEY") && vercelConfig.includes('"maxDuration": 300'), "use bot starts a grok agent and the analyse function can wait 300 seconds");
   const recorded = fetched.recordPage("https://example.com/post", "Extracted");
   assert(recorded.kind === "website" && recorded.focusUrl === "https://example.com/post" && recorded.items[0].body === "Extracted" && recorded.items[0].publishedAt == null, "ai page record stores the model text without fetching");
   const realFetch = global.fetch;
@@ -560,7 +560,7 @@ async function main() {
   const channelJob = analystDb.buildBotRequest({ mode: "channel", url: "https://example.com/investing", kind: "website", skip: ["https://example.com/older"], sourceName: "https://example.com/investing" });
   assert(channelJob.instruction.includes("newest post") && channelJob.instruction.includes("https://example.com/older") && channelJob.cutoff, "a channel bot job skips posts that are already analysed");
   const botScript = fs.readFileSync(path.join(root, "scripts/bot-job.js"), "utf8");
-  assert(botScript.includes('command === "claim"') && botScript.includes('command === "complete"') && botScript.includes("DATABASE_URL") && !botScript.includes("XAI_API_KEY") && dbSrc.includes("CREATE TABLE IF NOT EXISTS analyst_bot_jobs") && dbSrc.includes("interval '15 minutes'"), "the bot script claims a neon job and a stale claim returns to pending");
+  assert(botScript.includes('command === "claim"') && botScript.includes("claimBotJob(id)") && botScript.includes('command === "complete"') && botScript.includes("DATABASE_URL") && !botScript.includes("XAI_API_KEY") && dbSrc.includes("CREATE TABLE IF NOT EXISTS analyst_bot_jobs") && dbSrc.includes("AND id = $1") && dbSrc.includes("interval '15 minutes'"), "the bot script claims one neon job and a stale claim returns to pending");
   const ordered = analystDb.sortResults([
     { date: "2026-01-01" },
     { date: "" },
@@ -574,7 +574,9 @@ async function main() {
   const savedDb = process.env.DATABASE_URL;
   const savedDirect = process.env.DATABASE_URL_UNPOOLED;
   const savedKey = process.env.OPENROUTER_API_KEY;
+  const savedCursorKey = process.env.CURSOR_API_KEY;
   const testDb = process.env.ANALYST_TEST_DATABASE_URL;
+  delete process.env.CURSOR_API_KEY;
   delete process.env.DATABASE_URL;
   delete process.env.DATABASE_URL_UNPOOLED;
   delete process.env.OPENROUTER_API_KEY;
@@ -645,13 +647,39 @@ async function main() {
     await new Promise((resolve) => feedServer.listen(0, "127.0.0.1", resolve));
     const feedUrl = "http://127.0.0.1:" + feedServer.address().port + "/feed";
     try {
+      const fetchBeforeBot = global.fetch;
+      let cursorCreate = null;
+      process.env.CURSOR_API_KEY = "cursor-test-key";
+      global.fetch = async function (url, options) {
+        const target = String(url);
+        if (target === "https://api.cursor.com/v1/models") {
+          return { ok: true, status: 200, text: async () => JSON.stringify({ items: [{ id: "grok-4.5", displayName: "Grok 4.5" }, { id: "grok-4.7", displayName: "Grok 4.7" }] }) };
+        }
+        if (target === "https://api.cursor.com/v1/agents") {
+          cursorCreate = JSON.parse(options.body);
+          return { ok: true, status: 200, text: async () => JSON.stringify({ agent: { id: "bc-11111111-1111-4111-8111-111111111111" } }) };
+        }
+        return fetchBeforeBot(url, options);
+      };
       const queued = mockRes();
       await analyst({
         method: "POST",
         headers: { host: "localhost" },
         body: { action: "open-url", url: "https://example.com/bot-post", mode: "page", useBot: true },
       }, queued);
-      assert(queued.statusCode === 200 && queued.body.waiting === true && queued.body.bot === true && queued.body.jobId, "use bot queues a page job");
+      global.fetch = fetchBeforeBot;
+      delete process.env.CURSOR_API_KEY;
+      const agentId = "bc-11111111-1111-4111-8111-111111111111";
+      assert(queued.statusCode === 200 && queued.body.waiting === true && queued.body.bot === true && queued.body.jobId && queued.body.agentId === agentId && queued.body.debug.response === "https://cursor.com/agents/" + agentId, "use bot queues a page job and returns the agent id");
+      assert(cursorCreate && cursorCreate.autoCreatePR === false && cursorCreate.model.id === "grok-4.7" && cursorCreate.prompt.text.indexOf(queued.body.jobId) !== -1 && cursorCreate.repos[0].url === "https://github.com/chanzhanwei/stock_tracker" && cursorCreate.repos[0].startingRef === "main" && cursorCreate.envVars.DATABASE_URL === process.env.DATABASE_URL && JSON.stringify(cursorCreate).indexOf("cursor-test-key") === -1, "the grok launch names this job and does not open a pull request");
+      const missingBot = mockRes();
+      await analyst({
+        method: "POST",
+        headers: { host: "localhost" },
+        body: { action: "open-url", url: "https://example.com/bot-missing-key", mode: "page", useBot: true },
+      }, missingBot);
+      const failedJob = missingBot.body.jobId ? await analystDb.getBotJob(missingBot.body.jobId) : null;
+      assert(missingBot.statusCode === 503 && missingBot.body.message === "Set CURSOR_API_KEY on the server." && failedJob && failedJob.status === "error" && failedJob.result.error === "Set CURSOR_API_KEY on the server.", "a missing cursor key marks the job error");
       const claimed = await analystDb.claimBotJob();
       assert(claimed && claimed.id === queued.body.jobId && claimed.status === "claimed" && claimed.request.instruction.indexOf("example.com/bot-post") !== -1, "claim takes the oldest pending job");
       await analystDb.completeBotJob(claimed.id, {
@@ -689,6 +717,13 @@ async function main() {
       }, videoDone);
       assert(videoDone.statusCode === 200 && videoDone.body.item && videoDone.body.item.pasteTranscript === true && videoDone.body.item.text.indexOf("Chip talk") !== -1, "a youtube bot job without a transcript stays pasteable");
       assert(await analystDb.claimBotJob() == null, "claim is empty when nothing is pending");
+      const olderJob = await analystDb.createBotJob({ mode: "page", url: "https://example.com/older-job", skip: [] });
+      const newerJob = await analystDb.createBotJob({ mode: "page", url: "https://example.com/newer-job", skip: [] });
+      const specific = await analystDb.claimBotJob(newerJob.id);
+      const oldest = await analystDb.claimBotJob();
+      assert(specific && specific.id === newerJob.id && oldest && oldest.id === olderJob.id, "claim with an id takes that job and a bare claim takes the oldest");
+      if (specific) await analystDb.completeBotJob(specific.id, { error: "stopped" });
+      if (oldest) await analystDb.completeBotJob(oldest.id, { error: "stopped" });
       const created = mockRes();
       await analyst({
         method: "POST",
@@ -927,6 +962,8 @@ async function main() {
   else process.env.DATABASE_URL_UNPOOLED = savedDirect;
   if (savedKey == null) delete process.env.OPENROUTER_API_KEY;
   else process.env.OPENROUTER_API_KEY = savedKey;
+  if (savedCursorKey == null) delete process.env.CURSOR_API_KEY;
+  else process.env.CURSOR_API_KEY = savedCursorKey;
 
   if (failures.length) {
     console.error(failures.join("\n"));

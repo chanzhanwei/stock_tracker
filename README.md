@@ -61,7 +61,7 @@ A source is either one already saved, or a URL pasted on the desk. Add a source 
 
 YouTube items come from the channel's public video RSS, or from the video page title when the URL is a single video. The app does not download captions. With Use Bot off, paste the transcript into the text box. An X user is read from the public FxEmbed timeline. A website or Substack is fetched from its URL, or from the RSS feed the page points at.
 
-Use Bot replaces Use AI. Off keeps that local fetch. On, Extract writes a row in `analyst_bot_jobs` and the desk shows "Waiting for Grok Bot" until a Cursor agent claims it. The agent needs the same `DATABASE_URL` as the app. It runs `node scripts/bot-job.js claim`, reads the page, and completes the job with JSON on stdin (`url`, `title`, `text`, `pasteTranscript`). For a YouTube video, include the public transcript in `text` when you can read it. If you cannot, set `pasteTranscript` to true and leave the transcript empty. There is no `XAI_API_KEY`. The app does not start the agent. Analyse still uses OpenRouter.
+Use Bot replaces Use AI. Off keeps that local fetch. On, Extract writes a row in `analyst_bot_jobs` and starts a Cursor Grok cloud agent for that row. The status line links the agent id to the bot. The agent needs the same `DATABASE_URL` as the app, passed when it starts and also saved as a Cursor account secret. It runs `node scripts/bot-job.js claim <id>`, reads the page, and completes the job with JSON on stdin (`url`, `title`, `text`, `pasteTranscript`). For a YouTube video, include the public transcript in `text` when you can read it. If you cannot, set `pasteTranscript` to true and leave the transcript empty. There is no `XAI_API_KEY`. Analyse still uses OpenRouter.
 
 Analyse sends the text box to OpenRouter from the server. The key stays in `OPENROUTER_API_KEY` and is never sent to the browser. The default model is `deepseek/deepseek-v4.1-flash-1017`. After a call, that model's row shows the total, input, and output cost for the rest of the browser session. Costs stay blank before a call.
 
@@ -73,7 +73,8 @@ Sources, analysed posts, and saved rows live in Neon Postgres through `DATABASE_
 
 Create these on the server (Vercel project settings, and `.env.local` for `vercel dev`) if they are not already there. Do not commit the values.
 
-1. A Neon Postgres database, then set `DATABASE_URL` to its connection string.
+1. A Neon Postgres database, then set `DATABASE_URL` to its connection string. Add that same string as a Cursor account secret so the bot can claim the job.
 2. An OpenRouter API key, then set `OPENROUTER_API_KEY`.
+3. A Cursor API key that can start cloud agents, then set `CURSOR_API_KEY`. The GitHub connection on that Cursor account must include this repository.
 
 Charts use TradingView Lightweight Charts 4.1.3, vendored under `public/vendor/` (Apache License 2.0). The page does not load that library from a CDN.
